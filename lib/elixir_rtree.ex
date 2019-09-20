@@ -12,7 +12,7 @@ defmodule ElixirRtree do
     }
 
     :ets.insert(ets,{:metadata,Map.get(tree,:metadata)})
-    :ets.insert(ets,{'root', [{0,0},{0,0}],nil,:node})
+    :ets.insert(ets,{'root', [{0,0},{0,0}],nil,:root})
     tree
   end
 
@@ -24,54 +24,84 @@ defmodule ElixirRtree do
       IO.inspect "Impossible to insert, id value already exists: id's MUST be uniq"
       tree
     else
-      recursive_insertion(%{
+      rbundle = %{
         tree: tree,
         max_width: params[:max_width],
         min_width: params[:min_width],
         ets: meta.ets_table
-      },'root',leaf)
+      }
+      path = best_subtree(rbundle,leaf)
+      insert_leaf(rbundle,hd(path),leaf)
+      |> recursive_update(tl(path),leaf)
     end
   end
 
-  def recursive_insertion(rbundle,key,{box,id})do
+  def best_subtree(rbundle,leaf)do
+    find_best_subtree(rbundle,'root',leaf,[])
+  end
 
-    :ets.insert(rbundle.ets,{id,box,key,:leaf})
-    childs = rbundle.tree |> Map.get(key)
-    n_childs = length(childs)
-    if n_childs == 0 or rbundle.tree |> Map.get(childs |> List.first) |> (fn x -> x === :leaf end).() do
-      dad_box = rbundle.ets |> :ets.lookup(key) |> Utils.ets_value(:bbox)
-      available_space = rbundle.max_width - length(childs)
-      case available_space do
-        x when x > 0 -> rbundle.ets |> :ets.update_element(key,{Utils.ets_index(:bbox) + 1,Utils.combine(dad_box,box)})
-                        rbundle.tree
-                        |> Map.update!(key,fn ch -> [id] ++ ch end)
-                        |> Map.put(id,:leaf)
-        _ -> init_merge_childs(childs,rbundle.ets)
+  def find_best_subtree(rbundle,root,{_id,box} = leaf,track)do
+    childs = rbundle.tree |> Map.get(root)
+    type = rbundle.ets |> :ets.lookup(root) |> Utils.ets_value(:type)
+
+    if is_list(childs) and length(childs) > 0 do
+      n_childs = length(childs)
+      # TODO: mover de aquí para q no se redefina todo el rato
+      ind = fn l ->
+        m = Enum.max(l)
+        l |> Enum.find_index(fn e -> e == m end)
       end
+
+      best_fit = childs |> Enum.reduce_while([],fn c,acc ->
+        cbox = rbundle.ets |> :ets.lookup(c) |> Utils.ets_value(:bbox)
+        new_acc = acc ++ [Utils.overlap_area(box,cbox)]
+        n_c = length(new_acc)
+        if Enum.sum(new_acc) >= 100/n_c, do: {:halt, ind.(new_acc)}, else: if n_c < n_childs, do: {:cont, new_acc}, else: {:halt,ind.(new_acc)}
+      end)
+
+      find_best_subtree(rbundle,childs |> Enum.at(best_fit),leaf,track ++ [root])
+    else
+      if type === :leaf, do: track, else: track ++ [root]
     end
   end
 
-  def init_merge_childs(childs,ets)do
-    fc = hd(childs)
-    cbox = ets |> :ets.lookup(fc) |> Utils.ets_value(:bbox) |> Utils.format_bbox
-    r = %{
-      xm: cbox.xm,
-      xM: cbox.xM,
-      ym: cbox.ym,
-      yM: cbox.yM
+  def insert_leaf(rbundle,node,{id,box} = _leaf)do
+
+    childs = rbundle.tree |> Map.get(node)
+
+    res = if length(childs) < rbundle.max_width do
+      :ets.insert(rbundle.ets,{id,box,node,:leaf})
+      update_node_bbox(rbundle.ets,node,box)
+      rbundle.tree
+      |> Map.update!(node,fn ch -> [id] ++ ch end)
+      |> Map.put(id,:leaf)
+    else
+      IO.inspect "Im fking overflowing somewhere"
+      rbundle.tree
+    end
+
+    %{
+      tree: res,
+      max_width: rbundle.max_width,
+      min_width: rbundle.min_width,
+      ets: rbundle.ets
     }
-    if length(childs) > 1, do: merge_childs(tl(childs),ets,r), else: r
   end
 
-  defp merge_childs(childs,ets,result)do
-    c = hd(childs)
-    cbox = ets |> :ets.lookup(c) |> Utils.ets_value(:bbox) |> Utils.format_bbox
+  def recursive_update(rbundle,path,{_id,box} = leaf)when length(path) > 0 do
 
-    new_xm = if cbox.xm < result.xm, do: cbox.xm, else: result.xm
-    new_xM = if cbox.xM > result.xM, do: cbox.xM, else: result.xM
-    new_ym = if cbox.ym < result.ym, do: cbox.ym, else: result.ym
-    new_yM = if cbox.yM > result.yM, do: cbox.yM, else: result.yM
-    r = [{new_xm,new_xM},{new_ym,new_yM}]
-    if length(childs) > 1, do: merge_childs(tl(childs),ets, r |> Utils.format_bbox), else: r
+    update_node_bbox(rbundle.ets,hd(path),box)
+
+    if length(path) > 1, do: recursive_update(rbundle,tl(path),leaf), else: true
   end
+
+  def recursive_update(rbundle,_path,_leaf)do
+    rbundle.tree
+  end
+
+  def update_node_bbox(ets,node,added_box)do
+    node_box = ets |> :ets.lookup(node) |> Utils.ets_value(:bbox)
+    ets |> :ets.update_element(node,{Utils.ets_index(:bbox) + 1,Utils.combine(node_box,added_box)})
+  end
+
 end
