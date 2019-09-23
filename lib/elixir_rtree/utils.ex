@@ -15,15 +15,13 @@ defmodule ElixirRtree.Utils do
   def ets_value([raw],atom)do
     case atom do
       :bbox -> raw |> elem(1)
-      :daddy -> raw |> elem(2)
-      :type -> raw |> elem(3)
+      :type -> raw |> elem(2)
     end
   end
 
   def ets_index(atom)do
     case atom do
-      :bbox -> 1
-      :daddy -> 2
+      :bbox -> 2
       :type -> 3
     end
   end
@@ -41,6 +39,18 @@ defmodule ElixirRtree.Utils do
     if area(box2) === 0, do: box1, else: result
   end
 
+  #Combine multiple bbox
+  def combine_multiple(list)when length(list) > 1 do
+    real_list = list |> Enum.filter(fn x -> area(x) > 0 end)
+    tl(real_list) |> Enum.reduce(hd(real_list),fn [{a,b},{c,d}] = e, [{x,y},{z,w}] = acc ->
+      [{Kernel.min(a,x),Kernel.max(b,y)},{Kernel.min(c,z),Kernel.max(d,w)}]
+    end)
+  end
+
+  def combine_multiple(list)do
+    hd(list)
+  end
+
   # Returns de percent of the overlap area between box1 and box2
   def overlap_area(box1,box2)do
     a = box1 |> format_bbox
@@ -53,6 +63,11 @@ defmodule ElixirRtree.Utils do
   # Return the area of a bounding box
   def area([{a,b},{c,d}])do
     (b - a) * (d - c)
+  end
+
+  # Return de the middle bounding box value
+  def middle_value([{a,b},{c,d}])do
+    (a + b + c + d) / 2
   end
 
 
