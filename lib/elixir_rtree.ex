@@ -22,7 +22,7 @@ defmodule ElixirRtree do
     root = %{
       "identifier" => "root",
       "childs" => [%{"identifier" => node,
-                  "bounding" => Kernel.inspect([{0,0},{0,0}]),
+                  "bounding" => Kernel.inspect([{0,0},{0,0}],charlists: false),
                   "childs" => []}]
     }
 
@@ -123,17 +123,12 @@ defmodule ElixirRtree do
       tree_update
     end
 
-    %{
-      tree: final_tree,
-      max_width: rbundle.max_width,
-      min_width: rbundle.min_width,
-      ets: rbundle.ets
-    }
+    %{rbundle | tree: final_tree}
   end
 
   def recursive_update(rbundle,path,{_id,box} = leaf)when length(path) > 0 do
 
-    update_node_bbox(rbundle.ets,hd(path),box)
+    update_node_bbox(rbundle,hd(path),box)
 
     if length(path) > 1, do: recursive_update(rbundle,tl(path),leaf), else: rbundle.tree
   end
@@ -142,23 +137,39 @@ defmodule ElixirRtree do
     rbundle.tree
   end
 
-  def update_node_bbox(ets,node,added_box)do
-    node_box = ets |> :ets.lookup(node) |> Utils.ets_value(:bbox)
-    ets |> :ets.update_element(node,{Utils.ets_index(:bbox),Utils.combine(node_box,added_box)})
+  def update_node_bbox(rbundle,node,added_box)do
+    node_box = rbundle.ets |> :ets.lookup(node) |> Utils.ets_value(:bbox)
+    new_bbox = Utils.combine(node_box,added_box)
+
+    Dlex.transaction(rbundle.db, fn conn ->
+      query = ~s|{ v as var(func: eq(identifier, "#{node}"))}|
+      Dlex.mutate!(rbundle.db, query,
+        ~s|uid(v) <bounding> "#{new_bbox |> Kernel.inspect(charlists: false)}" .|,return_json: true) |> IO.inspect
+    end)
+
+    rbundle.ets |> :ets.update_element(node,{Utils.ets_index(:bbox),new_bbox})
   end
 
-  def update_crush(ets,node,{pos,value} = val)do
-    ets |> :ets.update_element(node,val)
+  def update_crush(rbundle,node,{pos,value} = val)do
+
+    Dlex.transaction(rbundle.db, fn conn ->
+      query = ~s|{ v as var(func: eq(identifier, "#{node}"))}|
+      Dlex.mutate!(rbundle.db, query,
+        ~s|uid(v) <bounding> "#{value |> Kernel.inspect(charlists: false)}" .|,return_json: true) |> IO.inspect
+    end)
+
+    rbundle.ets |> :ets.update_element(node,val)
   end
 
   def add_entry(rbundle,node,{id,box} = _leaf)do
     :ets.insert(rbundle.ets,{id,box,:leaf})
-    update_node_bbox(rbundle.ets,node,box)
+    update_node_bbox(rbundle,node,box)
 
     query = ~s|{ v as var(func: eq(identifier, "#{node}")) }|
     Dlex.mutate!(rbundle.db, query,
     ~s|uid(v) <childs> _:blank .
-       _:blank <identifier> "#{id}" .|,return_json: true)
+       _:blank <identifier> "#{id}" .
+       _:blank <bounding> "#{Kernel.inspect(box,charlists: false)}" .|,return_json: true)
 
     rbundle.tree
     |> Map.update!(node,fn ch -> [id] ++ ch end)
@@ -172,8 +183,9 @@ defmodule ElixirRtree do
 
     if is_root?(rbundle,n) do
       new_root = Node.new()
-      :ets.insert(rbundle.ets,{new_root,Utils.combine_multiple([node_n.bbox,new_node.bbox]),:node})
-      update_crush(rbundle.ets,n,{Utils.ets_index(:bbox),node_n.bbox})
+      root_bbox = Utils.combine_multiple([node_n.bbox,new_node.bbox])
+      :ets.insert(rbundle.ets,{new_root,root_bbox,:node})
+      update_crush(rbundle,n,{Utils.ets_index(:bbox),node_n.bbox})
       :ets.insert(rbundle.ets,{new_node.id,new_node.bbox,:node})
 
       Dlex.transaction(rbundle.db, fn conn ->
@@ -185,7 +197,8 @@ defmodule ElixirRtree do
         query = ~s|{ v as var(func: eq(identifier, "root"))}|
         Dlex.mutate!(rbundle.db, query,
           ~s|uid(v) <childs> _:blank .
-          _:blank <identifier> "#{new_root}".|,return_json: true) |> IO.inspect
+          _:blank <identifier> "#{new_root}".
+          _:blank <bounding> "#{root_bbox |> Kernel.inspect(charlists: false)}" .|,return_json: true) |> IO.inspect
 
         query = ~s|{ v as var(func: eq(identifier, "#{new_root}"))
                     x as var(func: eq(identifier, ["#{node_n.id}","#{new_node.id}"]))}|
@@ -199,14 +212,14 @@ defmodule ElixirRtree do
       |> Map.put(new_root,[node_n.id,new_node.id])
     else
       parent = hd(tl(branch))
-      update_crush(rbundle.ets,n,{Utils.ets_index(:bbox),node_n.bbox})
+      update_crush(rbundle,n,{Utils.ets_index(:bbox),node_n.bbox})
       :ets.insert(rbundle.ets,{new_node.id,new_node.bbox,:node})
 
 
-      query = ~s|{ v as var(func: eq(identifier, "#{parent}")) }|
+      query = ~s|{ v as var(func: eq(identifier, "#{parent}"))
+                  x as var(func: eq(identifier, "#{new_node.id}"))}|
       Dlex.mutate!(rbundle.db, query,
-        ~s|uid(v) <childs> _:blank .
-       _:blank <identifier> "#{new_node.id}" .|,return_json: true)
+        ~s|uid(v) <childs> uid(x) .|,return_json: true)
       updated_tree = rbundle.tree
       |> Map.put(new_node.id,new_node.childs)
       |> Map.replace!(n,node_n.childs)
@@ -236,27 +249,33 @@ defmodule ElixirRtree do
                   |> Enum.slice(((rbundle.max_width/2) |> Kernel.trunc)..length(sorted_nodes) - 1) |> Enum.unzip
     new_node = Node.new()
 
+    n_bounds = n_bbox |> Utils.combine_multiple
+    dn_bounds = dn_bbox |> Utils.combine_multiple
+
     Dlex.set(rbundle.db,%{
       "identifier" => new_node,
+      "bounding" => "#{dn_bounds |> Kernel.inspect(charlists: false)}",
       "childs" => []
-    })
+    }) |> IO.inspect
 
+    IO.inspect dn_id
     Dlex.transaction(rbundle.db, fn conn ->
 
       query = ~s|{ v as var(func: eq(identifier, "#{node}"))
-                  c as var(func: eq(identifier, #{dn_id |> Kernel.inspect}))}|
+                  c as var(func: eq(identifier, #{dn_id |> Kernel.inspect(charlists: false)}))}|
       Dlex.delete(rbundle.db, query,
-        ~s|uid(v) <childs> uid(c) .|,return_json: true) |> IO.inspect
+        ~s|uid(v) <childs> uid(c) .
+           uid(v) <bounding> "#{n_bounds |> Kernel.inspect(charlists: false)}" .|,return_json: true) |> IO.inspect
 
 
       query = ~s|{ v as var(func: eq(identifier, "#{new_node}"))
-                  c as var(func: eq(identifier, #{dn_id |> Kernel.inspect}))}|
+                  c as var(func: eq(identifier, #{dn_id |> Kernel.inspect(charlists: false)}))}|
       Dlex.mutate!(rbundle.db, query,
         ~s|uid(v) <childs> uid(c) .|,return_json: true) |> IO.inspect
     end)
 
 
-    {%{id: node, childs: n_id, bbox: n_bbox |> Utils.combine_multiple},
-      %{id: new_node, childs: dn_id, bbox: dn_bbox |> Utils.combine_multiple}}
+    {%{id: node, childs: n_id, bbox: n_bounds},
+      %{id: new_node, childs: dn_id, bbox: dn_bounds}}
   end
 end
