@@ -60,6 +60,17 @@ defmodule ElixirRtree.Utils do
     (x_overlap * y_overlap) * 100 |> Kernel.trunc
   end
 
+  # Return if those 2 boxes are overlapping
+  def overlap?(box1,box2)do
+    if overlap_area(box1,box2) > 0, do: true, else: false
+  end
+
+  def enlargement_area(box,new_box)do
+    a1 = area(box)
+    a2 = combine_multiple([box,new_box]) |> area
+    a2 - a1
+  end
+
   # Return the area of a bounding box
   def area([{a,b},{c,d}])do
     (b - a) * (d - c)
