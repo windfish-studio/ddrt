@@ -65,10 +65,19 @@ defmodule ElixirRtree.Utils do
     if overlap_area(box1,box2) > 0, do: true, else: false
   end
 
+  # Área que adicional de una caja al añadir un nuevo hijo
   def enlargement_area(box,new_box)do
     a1 = area(box)
     a2 = combine_multiple([box,new_box]) |> area
     a2 - a1
+  end
+
+  # Checks if box is at some border of parent_box
+  def in_border?(parent_box,box)do
+    p = parent_box |> format_bbox
+    b = box |> format_bbox
+
+    p.xm == b.xm or p.xM == b.xM or p.ym == b.ym or p.yM == b.yM
   end
 
   # Return the area of a bounding box

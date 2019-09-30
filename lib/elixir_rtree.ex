@@ -2,11 +2,12 @@ defmodule ElixirRtree do
   alias ElixirRtree.Node
   alias ElixirRtree.Utils
 
-  def new(width \\ 6)do
+  def new(width \\ 6, mode \\ :prod)do
     w = [{:min_width,:math.floor(width) / 2.0},{:max_width,width}]
     ets = :ets.new(:rtree,[:set])
 
-    db = setup_dgraph
+    db = if mode == :dev, do: setup_dgraph
+
 
     node = Node.new()
 
@@ -20,14 +21,16 @@ defmodule ElixirRtree do
     :ets.insert(ets,{:metadata,Map.get(tree,:metadata)})
     :ets.insert(ets,{'root', node ,:root})
 
-    root = %{
-      "identifier" => "root",
-      "childs" => [%{"identifier" => node,
-                  "bounding" => Kernel.inspect([{0,0},{0,0}],charlists: false),
-                  "childs" => []}]
-    }
+    if db do
+      root = %{
+        "identifier" => "root",
+        "childs" => [%{"identifier" => node,
+                    "bounding" => Kernel.inspect([{0,0},{0,0}],charlists: false),
+                    "childs" => []}]
+      }
 
-    Dlex.set(db,root)
+      Dlex.set(db,root)
+    end
 
     :ets.insert(ets,{node,[{0,0},{0,0}],:node})
     tree
@@ -38,13 +41,6 @@ defmodule ElixirRtree do
     Dlex.alter!(pid, %{drop_all: true})
 
     schema = """
-      type BoundingBox {
-        xmin: float
-        xmax: float
-        ymin: float
-        ymax: float
-      }
-
       <identifier>: string @index(hash) .
     """
 
@@ -86,7 +82,7 @@ defmodule ElixirRtree do
     else
       path = best_subtree(rbundle,leaf)
       insertion(rbundle,path,leaf)
-      |> recursive_update(tl(path),leaf)
+      |> recursive_update(tl(path),leaf,:insertion)
     end
     t2 = :os.system_time(:millisecond)
     IO.inspect t2-t1
@@ -131,14 +127,15 @@ defmodule ElixirRtree do
 
   defp add_entry(rbundle,node,{id,box} = _leaf)do
     :ets.insert(rbundle.ets,{id,box,:leaf})
-    update_node_bbox(rbundle,node,box)
+    update_node_bbox(rbundle,node,box,:insertion)
 
-    query = ~s|{ v as var(func: eq(identifier, "#{node}")) }|
-    Dlex.mutate!(rbundle.db, query,
-      ~s|uid(v) <childs> _:blank .
-       _:blank <identifier> "#{id}" .
-       _:blank <bounding> "#{Kernel.inspect(box,charlists: false)}" .|,return_json: true)
-
+    if rbundle.db do
+      query = ~s|{ v as var(func: eq(identifier, "#{node}")) }|
+      Dlex.mutate!(rbundle.db, query,
+        ~s|uid(v) <childs> _:blank .
+         _:blank <identifier> "#{id}" .
+         _:blank <bounding> "#{Kernel.inspect(box,charlists: false)}" .|,return_json: true)
+    end
     parents_update = rbundle.parents |> Map.put(id,node)
 
     rbundle.tree
@@ -159,33 +156,31 @@ defmodule ElixirRtree do
       :ets.insert(rbundle.ets,{new_root,root_bbox,:node})
       update_crush(rbundle,n,{Utils.ets_index(:bbox),node_n.bbox})
       :ets.insert(rbundle.ets,{new_node.id,new_node.bbox,:node})
+      if rbundle.db do
+        Dlex.transaction(rbundle.db, fn conn ->
+          query = ~s|{ v as var(func: eq(identifier, "root"))
+                      x as var(func: eq(identifier, "#{node_n.id}"))}|
+          Dlex.delete(rbundle.db, query,
+            ~s|uid(v) <childs> uid(x) .|,return_json: true)
 
-      Dlex.transaction(rbundle.db, fn conn ->
-        query = ~s|{ v as var(func: eq(identifier, "root"))
-                    x as var(func: eq(identifier, "#{node_n.id}"))}|
-        Dlex.delete(rbundle.db, query,
-          ~s|uid(v) <childs> uid(x) .|,return_json: true)
+          query = ~s|{ v as var(func: eq(identifier, "root"))}|
+          Dlex.mutate!(rbundle.db, query,
+            ~s|uid(v) <childs> _:blank .
+            _:blank <identifier> "#{new_root}".
+            _:blank <bounding> "#{root_bbox |> Kernel.inspect(charlists: false)}" .|,return_json: true)
 
-        query = ~s|{ v as var(func: eq(identifier, "root"))}|
-        Dlex.mutate!(rbundle.db, query,
-          ~s|uid(v) <childs> _:blank .
-          _:blank <identifier> "#{new_root}".
-          _:blank <bounding> "#{root_bbox |> Kernel.inspect(charlists: false)}" .|,return_json: true)
-
-        query = ~s|{ v as var(func: eq(identifier, "#{new_root}"))
-                    x as var(func: eq(identifier, ["#{node_n.id}","#{new_node.id}"]))}|
-        Dlex.mutate!(rbundle.db, query,
-          ~s|uid(v) <childs> uid(x) .|,return_json: true)
-      end)
-
+          query = ~s|{ v as var(func: eq(identifier, "#{new_root}"))
+                      x as var(func: eq(identifier, ["#{node_n.id}","#{new_node.id}"]))}|
+          Dlex.mutate!(rbundle.db, query,
+            ~s|uid(v) <childs> uid(x) .|,return_json: true)
+        end)
+      end
       parents_update = rbundle.parents
                        |> Map.put(node_n.id,new_root)
                        |> Map.put(new_node.id,new_root)
-
       parents_update = new_node.childs |> Enum.reduce(parents_update,fn c,acc ->
         acc |> Map.put(c,new_node.id)
       end)
-
       rbundle.tree |> Map.put(new_node.id,new_node.childs)
       |> Map.replace!(n,node_n.childs)
       |> Map.replace!('root',new_root)
@@ -195,18 +190,16 @@ defmodule ElixirRtree do
       parent = hd(tl(branch))
       update_crush(rbundle,n,{Utils.ets_index(:bbox),node_n.bbox})
       :ets.insert(rbundle.ets,{new_node.id,new_node.bbox,:node})
-
-
-      query = ~s|{ v as var(func: eq(identifier, "#{parent}"))
-                  x as var(func: eq(identifier, "#{new_node.id}"))}|
-      Dlex.mutate!(rbundle.db, query,
-        ~s|uid(v) <childs> uid(x) .|,return_json: true)
-
+      if rbundle.db do
+        query = ~s|{ v as var(func: eq(identifier, "#{parent}"))
+                    x as var(func: eq(identifier, "#{new_node.id}"))}|
+        Dlex.mutate!(rbundle.db, query,
+          ~s|uid(v) <childs> uid(x) .|,return_json: true)
+      end
       parents_update = rbundle.parents |> Map.put(new_node.id,parent)
       parents_update = new_node.childs |> Enum.reduce(parents_update,fn c,acc ->
         acc |> Map.put(c,new_node.id)
       end)
-
       updated_tree = rbundle.tree
                      |> Map.put(new_node.id,new_node.childs)
                      |> Map.put(:parents,parents_update)
@@ -237,29 +230,28 @@ defmodule ElixirRtree do
 
     n_bounds = n_bbox |> Utils.combine_multiple
     dn_bounds = dn_bbox |> Utils.combine_multiple
+    if rbundle.db do
+      Dlex.set(rbundle.db,%{
+        "identifier" => new_node,
+        "bounding" => "#{dn_bounds |> Kernel.inspect(charlists: false)}",
+        "childs" => []
+      })
 
-    Dlex.set(rbundle.db,%{
-      "identifier" => new_node,
-      "bounding" => "#{dn_bounds |> Kernel.inspect(charlists: false)}",
-      "childs" => []
-    })
+      Dlex.transaction(rbundle.db, fn conn ->
 
-    Dlex.transaction(rbundle.db, fn conn ->
-
-      query = ~s|{ v as var(func: eq(identifier, "#{node}"))
-                  c as var(func: eq(identifier, #{dn_id |> Kernel.inspect(charlists: false)}))}|
-      Dlex.delete(rbundle.db, query,
-        ~s|uid(v) <childs> uid(c) .
-           uid(v) <bounding> "#{n_bounds |> Kernel.inspect(charlists: false)}" .|,return_json: true)
-
-
-      query = ~s|{ v as var(func: eq(identifier, "#{new_node}"))
-                  c as var(func: eq(identifier, #{dn_id |> Kernel.inspect(charlists: false)}))}|
-      Dlex.mutate!(rbundle.db, query,
-        ~s|uid(v) <childs> uid(c) .|,return_json: true)
-    end)
+        query = ~s|{ v as var(func: eq(identifier, "#{node}"))
+                    c as var(func: eq(identifier, #{dn_id |> Kernel.inspect(charlists: false)}))}|
+        Dlex.delete(rbundle.db, query,
+          ~s|uid(v) <childs> uid(c) .
+             uid(v) <bounding> "#{n_bounds |> Kernel.inspect(charlists: false)}" .|,return_json: true)
 
 
+        query = ~s|{ v as var(func: eq(identifier, "#{new_node}"))
+                    c as var(func: eq(identifier, #{dn_id |> Kernel.inspect(charlists: false)}))}|
+        Dlex.mutate!(rbundle.db, query,
+          ~s|uid(v) <childs> uid(c) .|,return_json: true)
+      end)
+    end
     {%{id: node, childs: n_id, bbox: n_bounds},
       %{id: new_node, childs: dn_id, bbox: dn_bounds}}
   end
@@ -327,29 +319,35 @@ defmodule ElixirRtree do
   ## Delete
 
   defp remove(rbundle,id)do
-    rbundle.ets |> :ets.delete(id)
+
     parent = rbundle.parents |> Map.get(id)
 
     if parent do
+      removed_bbox = rbundle.ets |> :ets.lookup(id) |> Utils.ets_value(:bbox)
+      rbundle.ets |> :ets.delete(id)
       parents_update = rbundle.parents |> Map.delete(id)
       tree_updated = rbundle.tree |> Map.delete(id)
       |> Map.update!(parent,fn ch -> ch -- [id] end)
       |> Map.put(:parents,parents_update)
-
-      query = ~s|{ v as var(func: eq(identifier, "#{parent}"))
-                  x as var(func: eq(identifier, "#{id}"))}|
-      Dlex.delete(rbundle.db, query,
-        ~s|uid(v) <childs> uid(x) .|,return_json: true)
-
+      if rbundle.db do
+        query = ~s|{ v as var(func: eq(identifier, "#{parent}"))
+                    x as var(func: eq(identifier, "#{id}"))}|
+        Dlex.delete(rbundle.db, query,
+          ~s|uid(v) <childs> uid(x) .|,return_json: true)
+      end
       parent_childs = tree_updated |> Map.get(parent)
 
-      if length(parent_childs) > 0, do: tree_updated, else: remove(%{rbundle | tree: tree_updated, parents: parents_update},parent)
+      if length(parent_childs) > 0 do
+        %{rbundle | tree: tree_updated, parents: parents_update} |> recursive_update(parent,removed_bbox,:deletion)
+      else
+        remove(%{rbundle | tree: tree_updated, parents: parents_update},parent)
+      end
     else
-
-      query = ~s|{ v as var(func: eq(identifier, "#{id}"))}|
-      Dlex.mutate!(rbundle.db, query,
-        ~s|uid(v) <bounding> "#{[{0,0},{0,0}] |> Kernel.inspect(charlists: false)}" .|,return_json: true)
-
+      if rbundle.db do
+        query = ~s|{ v as var(func: eq(identifier, "#{id}"))}|
+        Dlex.mutate!(rbundle.db, query,
+          ~s|uid(v) <bounding> "#{[{0,0},{0,0}] |> Kernel.inspect(charlists: false)}" .|,return_json: true)
+      end
       rbundle.ets |> :ets.update_element(id,{Utils.ets_index(:bbox),[{0,0},{0,0}]})
       rbundle.tree
     end
@@ -357,44 +355,69 @@ defmodule ElixirRtree do
 
   ## Common updates
 
-  defp recursive_update(rbundle,path,{_id,box} = leaf)when length(path) > 0 do
+  # Recursive bbox updates when you have node path from root (at insertion)
+  defp recursive_update(rbundle,path,{_id,box} = leaf,:insertion)when length(path) > 0 do
 
-    modified = update_node_bbox(rbundle,hd(path),box)
+    modified = update_node_bbox(rbundle,hd(path),box,:insertion)
 
-    if modified and length(path) > 1, do: recursive_update(rbundle,tl(path),leaf), else: rbundle.tree
+    if modified and length(path) > 1, do: recursive_update(rbundle,tl(path),leaf,:insertion), else: rbundle.tree
   end
 
-  defp recursive_update(rbundle,_path,_leaf)do
+  # Typical dumbass safe method
+  defp recursive_update(rbundle,_path,_leaf,:insertion)do
     rbundle.tree
   end
 
-  defp update_node_bbox(rbundle,node,added_box)do
-    node_box = rbundle.ets |> :ets.lookup(node) |> Utils.ets_value(:bbox)
-    new_bbox = Utils.combine(node_box,added_box)
+  # Recursive bbox updates when u dont have node path from root, so you have to query parents map... (at delete)
+  defp recursive_update(rbundle,node,box,:deletion)do
+    modified = update_node_bbox(rbundle,node,box,:deletion)
+    next = rbundle.parents |> Map.get(node)
+    if modified and next, do: recursive_update(rbundle,next,box,:deletion), else: rbundle.tree
+  end
 
+  defp update_node_bbox(rbundle,node,the_box,action)do
+    node_box = rbundle.ets |> :ets.lookup(node) |> Utils.ets_value(:bbox)
+
+    new_bbox = case action do
+      :insertion -> Utils.combine(node_box,the_box)
+      :deletion -> if Utils.in_border?(node_box,the_box) do
+                      rbundle.tree |> Map.get(node)
+                      |> Enum.map(fn c ->
+                        rbundle.ets |> :ets.lookup(c) |> Utils.ets_value(:bbox) end)
+                      |> Utils.combine_multiple
+                    else
+                      node_box
+                    end
+    end
+
+    bbox_mutation(rbundle,node,new_bbox,node_box)
+  end
+
+  defp bbox_mutation(rbundle,node,new_bbox,node_box)do
     if new_bbox == node_box do
       false
     else
-      Dlex.transaction(rbundle.db, fn conn ->
-        query = ~s|{ v as var(func: eq(identifier, "#{node}"))}|
-        Dlex.mutate!(rbundle.db, query,
-          ~s|uid(v) <bounding> "#{new_bbox |> Kernel.inspect(charlists: false)}" .|,return_json: true)
-      end)
+      if rbundle.db do
+        Dlex.transaction(rbundle.db, fn conn ->
+          query = ~s|{ v as var(func: eq(identifier, "#{node}"))}|
+          Dlex.mutate!(rbundle.db, query,
+            ~s|uid(v) <bounding> "#{new_bbox |> Kernel.inspect(charlists: false)}" .|,return_json: true)
+        end)
+      end
       rbundle.ets |> :ets.update_element(node,{Utils.ets_index(:bbox),new_bbox})
       true
     end
-
-
   end
 
+  # Crush a value, not read needed.
   defp update_crush(rbundle,node,{pos,value} = val)do
-
-    Dlex.transaction(rbundle.db, fn conn ->
-      query = ~s|{ v as var(func: eq(identifier, "#{node}"))}|
-      Dlex.mutate!(rbundle.db, query,
-        ~s|uid(v) <bounding> "#{value |> Kernel.inspect(charlists: false)}" .|,return_json: true)
-    end)
-
+    if rbundle.db do
+      Dlex.transaction(rbundle.db, fn conn ->
+        query = ~s|{ v as var(func: eq(identifier, "#{node}"))}|
+        Dlex.mutate!(rbundle.db, query,
+          ~s|uid(v) <bounding> "#{value |> Kernel.inspect(charlists: false)}" .|,return_json: true)
+      end)
+    end
     rbundle.ets |> :ets.update_element(node,val)
   end
 
