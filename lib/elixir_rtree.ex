@@ -103,8 +103,12 @@ defmodule ElixirRtree do
   end
 
   def delete(tree,id)do
+    t1 = :os.system_time(:millisecond)
     rbundle = get_rbundle(tree)
-    remove(rbundle,id) |> Map.get(id)
+    r = remove(rbundle,id)
+    t2 = :os.system_time(:millisecond)
+    IO.inspect "#{t2-t1} ms"
+    r
   end
 
   # Internal actions
@@ -178,7 +182,6 @@ defmodule ElixirRtree do
                        |> Map.put(node_n.id,new_root)
                        |> Map.put(new_node.id,new_root)
 
-      #TODO: bug aqui
       parents_update = new_node.childs |> Enum.reduce(parents_update,fn c,acc ->
         acc |> Map.put(c,new_node.id)
       end)
@@ -339,7 +342,8 @@ defmodule ElixirRtree do
         ~s|uid(v) <childs> uid(x) .|,return_json: true)
 
       parent_childs = tree_updated |> Map.get(parent)
-      if length(parent_childs) > 0, do: tree_updated, else: remove(%{rbundle | tree: tree_updated},parent)
+
+      if length(parent_childs) > 0, do: tree_updated, else: remove(%{rbundle | tree: tree_updated, parents: parents_update},parent)
     else
 
       query = ~s|{ v as var(func: eq(identifier, "#{id}"))}|
