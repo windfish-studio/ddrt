@@ -8,7 +8,6 @@ defmodule ElixirRtree do
 
     db = if mode == :dev, do: setup_dgraph
 
-
     node = Node.new()
 
     tree = %{
@@ -74,36 +73,36 @@ defmodule ElixirRtree do
   # Actions
 
   def insert(tree,{id,box} = leaf)do
-    t1 = :os.system_time(:millisecond)
+    #t1 = :os.system_time(:microsecond)
     rbundle = get_rbundle(tree)
+
     r = if rbundle.ets |> :ets.member(id) do
-      IO.inspect "Impossible to insert, id value already exists: id's MUST be uniq"
       tree
     else
       path = best_subtree(rbundle,leaf)
       insertion(rbundle,path,leaf)
       |> recursive_update(tl(path),leaf,:insertion)
     end
-    t2 = :os.system_time(:millisecond)
-    IO.inspect t2-t1
+    #t2 = :os.system_time(:microsecond)
+    #IO.inspect "TOTAL INSERT: #{t2-t1} µs"
     r
   end
 
   def query(tree,box)do
-    t1 = :os.system_time(:millisecond)
+    t1 = :os.system_time(:microsecond)
     rbundle = get_rbundle(tree)
-    r = find_match_leafs(rbundle,box,[get_root(rbundle)],[])
-    t2 = :os.system_time(:millisecond)
-    IO.inspect "#{t2-t1} ms"
+    r = find_match_leafs(rbundle,box,[get_root(rbundle)],[],[])
+    t2 = :os.system_time(:microsecond)
+    IO.inspect "#{t2-t1} µs"
     r
   end
 
   def delete(tree,id)do
-    t1 = :os.system_time(:millisecond)
+    t1 = :os.system_time(:microsecond)
     rbundle = get_rbundle(tree)
     r = remove(rbundle,id)
-    t2 = :os.system_time(:millisecond)
-    IO.inspect "#{t2-t1} ms"
+    t2 = :os.system_time(:microsecond)
+    IO.inspect "#{t2-t1} µs"
     r
   end
 
@@ -117,6 +116,7 @@ defmodule ElixirRtree do
     childs = tree_update |> Map.get(hd(branch))
 
     final_tree = if length(childs) > rbundle.max_width do
+      #TODO: intentar optimizar ese caso
       handle_overflow(%{rbundle | tree: tree_update, parents: tree_update |> Map.get(:parents)},branch)
     else
       tree_update
@@ -260,13 +260,16 @@ defmodule ElixirRtree do
     find_best_subtree(rbundle,get_root(rbundle),leaf,[])
   end
 
+  # TODO: Optimizar que no baje hasta tocar una :leaf (unidad), hacer que las leafs sean los nodos superiores de las unidades
   defp find_best_subtree(rbundle,root,{_id,box} = leaf,track)do
     childs = rbundle.tree |> Map.get(root)
     type = rbundle.ets |> :ets.lookup(root) |> Utils.ets_value(:type)
 
     if is_list(childs) and length(childs) > 0 do
       index_result = get_best_candidate(rbundle,childs,box)
-      find_best_subtree(rbundle,childs |> Enum.at(index_result),leaf,[root] ++ track)
+      winner = childs |> Enum.at(index_result)
+      new_track = [root] ++ track
+      find_best_subtree(rbundle,winner,leaf,new_track)
     else
       if type === :leaf, do: track, else: [root] ++ track
     end
@@ -301,19 +304,37 @@ defmodule ElixirRtree do
 
   ## Query
 
-  defp find_match_leafs(rbundle,box,dig,leafs)do
+  defp find_match_leafs(rbundle,box,dig,leafs,flood)do
     f = hd(dig)
     tail = if length(dig) > 1, do: tl(dig), else: []
     fbox = rbundle.ets |> :ets.lookup(f) |> Utils.ets_value(:bbox)
 
-    {new_dig,new_leafs} = if Utils.overlap?(fbox,box)do
+    {new_dig,new_leafs,new_flood} = if Utils.overlap?(fbox,box)do
         content = rbundle.tree |> Map.get(f)
-        if is_atom(content), do: {tail,[f] ++ leafs}, else: {content ++ tail,leafs}
+        if is_atom(content) do
+          {tail,[f] ++ leafs,flood}
+        else
+          if Utils.contained?(box,fbox), do: {tail,leafs,[f] ++ flood}, else: {content ++ tail,leafs,flood}
+        end
       else
-        {tail,leafs}
+        {tail,leafs,flood}
     end
 
-    if length(new_dig) > 0, do: find_match_leafs(rbundle,box,new_dig,new_leafs), else: new_leafs
+    if length(new_dig) > 0 do
+      find_match_leafs(rbundle,box,new_dig,new_leafs,new_flood)
+    else
+      new_leafs ++ explore_flood(rbundle,new_flood)
+    end
+  end
+
+  defp explore_flood(rbundle,flood)do
+    next_floor = flood |> Enum.flat_map(fn x ->
+                                        case rbundle.tree |> Map.get(x) do
+                                          :leaf -> []
+                                          any -> any
+                                        end end)
+
+    if length(next_floor) > 0,do: explore_flood(rbundle,next_floor), else: flood
   end
 
   ## Delete
@@ -336,7 +357,6 @@ defmodule ElixirRtree do
           ~s|uid(v) <childs> uid(x) .|,return_json: true)
       end
       parent_childs = tree_updated |> Map.get(parent)
-
       if length(parent_childs) > 0 do
         %{rbundle | tree: tree_updated, parents: parents_update} |> recursive_update(parent,removed_bbox,:deletion)
       else

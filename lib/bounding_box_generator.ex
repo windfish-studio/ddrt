@@ -41,5 +41,16 @@ defmodule BoundingBoxGenerator do
     end
   end
 
+  def struggle_tree(n,size)do
+    t1 = :os.system_time(:microsecond)
+    boxes = generate(n,size,[])
+    t = ElixirRtree.new
+    tree = boxes |> Enum.reduce(t,fn b,acc ->
+      acc |> ElixirRtree.insert({UUID.uuid1(),b})
+    end)
+    t2 = :os.system_time(:microsecond)
+    IO.inspect "Insert #{n} leafs: #{t2-t1} µs"
+    tree
+  end
 
 end
