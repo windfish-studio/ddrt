@@ -45,11 +45,22 @@ defmodule BoundingBoxGenerator do
     t1 = :os.system_time(:microsecond)
     boxes = generate(n,size,[])
     t = ElixirRtree.new
-    tree = boxes |> Enum.reduce(t,fn b,acc ->
-      acc |> ElixirRtree.insert({UUID.uuid1(),b})
+    tree = boxes |> Enum.with_index |> Enum.reduce(t,fn {b,i},acc ->
+      acc |> ElixirRtree.insert({i,b})
     end)
     t2 = :os.system_time(:microsecond)
     IO.inspect "Insert #{n} leafs: #{t2-t1} µs"
+    tree
+  end
+
+  def struggle_updates(mytree,n,size)do
+    t1 = :os.system_time(:microsecond)
+    boxes = generate(n,size,[])
+    tree = boxes |> Enum.with_index |> Enum.reduce(mytree,fn {b,i},acc ->
+      acc |> ElixirRtree.update_leaf(i,b)
+    end)
+    t2 = :os.system_time(:microsecond)
+    IO.inspect "Updated #{n} leafs: #{t2-t1} µs"
     tree
   end
 

@@ -2,6 +2,9 @@ defmodule ElixirRtree do
   alias ElixirRtree.Node
   alias ElixirRtree.Utils
 
+  # Entre 1 y 64800. Bigger value => ^ updates speed, ~v query speed.
+  @max_area 10800
+
   def new(width \\ 6, mode \\ :prod)do
     w = [{:min_width,:math.floor(width) / 2.0},{:max_width,width}]
     ets = :ets.new(:rtree,[:set])
@@ -106,8 +109,73 @@ defmodule ElixirRtree do
     r
   end
 
+  def update_leaf(tree,id,{old_box,new_box})do
+    rbundle = get_rbundle(tree)
+
+    parent = rbundle.tree |> Map.get(:parents) |> Map.get(id)
+    parent_box = rbundle.ets |> :ets.lookup(parent) |> Utils.ets_value(:bbox)
+    rbundle |> update_crush(id,{Utils.ets_index(:bbox),new_box})
+
+    r = if Utils.contained?(parent_box,new_box)do
+      if Utils.in_border?(parent_box,old_box)do
+        rbundle |> recursive_update(parent,old_box,:deletion)
+      else
+        tree
+      end
+    else
+      case rbundle |> node_brothers(parent) |> (fn b -> good_slot?(rbundle,b,new_box) end).() do
+        {new_parent,_new_brothers,_new_parent_box} -> triple_s(rbundle,parent,new_parent,{id,old_box})
+        nil ->  if Utils.area(parent_box) >= @max_area do
+                  #Worst case for updates
+                  rbundle |> top_down({id,new_box})
+                else
+                  #Worst case for queries
+                  rbundle |> recursive_update(parent,new_box,:insertion)
+               end
+      end
+
+    end
+    r
+  end
+
+  # You dont need to know old_box but is a BIT slower
+  def update_leaf(tree,id,new_box)do
+    rbundle = get_rbundle(tree)
+    update_leaf(tree,id,{rbundle.ets |> :ets.lookup(id) |> Utils.ets_value(:bbox),new_box})
+  end
+
   # Internal actions
   ## Insert
+
+  # triple - S (Structure Swifty Shift)
+  def triple_s(rbundle,old_node,new_node,{id,box})do
+
+    if rbundle.db do
+      Dlex.transaction(rbundle.db, fn conn ->
+        query = ~s|{ v as var(func: eq(identifier, "#{old_node}"))
+                      x as var(func: eq(identifier, "#{id}"))}|
+        Dlex.delete(rbundle.db, query,
+          ~s|uid(v) <childs> uid(x) .|,return_json: true)
+
+        query = ~s|{ v as var(func: eq(identifier, "#{new_node}"))
+                      x as var(func: eq(identifier, "#{id}"))}|
+        Dlex.mutate!(rbundle.db, query,
+          ~s|uid(v) <childs> uid(x) .|,return_json: true)
+      end)
+    end
+
+    parents_update = rbundle.parents |> Map.put(id,new_node)
+    old_node_childs_update = rbundle.tree |> Map.get(old_node) |> (fn n -> n -- [id] end).()
+    tree_update = rbundle.tree
+                  |> Map.update!(new_node, fn ch -> [id] ++ ch end)
+                  |> Map.put(:parents,parents_update)
+
+    if length(old_node_childs_update) > 0 do
+      %{rbundle | tree: tree_update |> Map.put(old_node,old_node_childs_update) , parents: parents_update} |> recursive_update(old_node,box,:deletion)
+    else
+      %{rbundle | tree: tree_update, parents: parents_update} |> remove(old_node)
+    end
+  end
 
   defp insertion(rbundle,branch,{id,box} = leaf)do
 
@@ -373,26 +441,31 @@ defmodule ElixirRtree do
     end
   end
 
+
   ## Common updates
+
+  defp top_down(rbundle,{id,box})do
+    rbundle |> remove(id) |> insert({id,box})
+  end
 
   # Recursive bbox updates when you have node path from root (at insertion)
   defp recursive_update(rbundle,path,{_id,box} = leaf,:insertion)when length(path) > 0 do
-
     modified = update_node_bbox(rbundle,hd(path),box,:insertion)
 
     if modified and length(path) > 1, do: recursive_update(rbundle,tl(path),leaf,:insertion), else: rbundle.tree
   end
 
+  # Recursive bbox updates when u dont have node path from root, so you have to query parents map... (at delete)
+  defp recursive_update(rbundle,node,box,mode)when is_list(node) |> Kernel.not do
+    modified = update_node_bbox(rbundle,node,box,mode)
+    next = rbundle.parents |> Map.get(node)
+    if modified and next, do: recursive_update(rbundle,next,box,mode), else: rbundle.tree
+  end
+
+
   # Typical dumbass safe method
   defp recursive_update(rbundle,_path,_leaf,:insertion)do
     rbundle.tree
-  end
-
-  # Recursive bbox updates when u dont have node path from root, so you have to query parents map... (at delete)
-  defp recursive_update(rbundle,node,box,:deletion)do
-    modified = update_node_bbox(rbundle,node,box,:deletion)
-    next = rbundle.parents |> Map.get(node)
-    if modified and next, do: recursive_update(rbundle,next,box,:deletion), else: rbundle.tree
   end
 
   defp update_node_bbox(rbundle,node,the_box,action)do
@@ -439,6 +512,20 @@ defmodule ElixirRtree do
       end)
     end
     rbundle.ets |> :ets.update_element(node,val)
+  end
+
+  # Return the brothers of the node [{brother_id, brother_childs, brother_box},...]
+  defp node_brothers(rbundle,node)do
+    parent = rbundle.parents |> Map.get(node)
+    rbundle.tree
+    |> Map.get(parent)
+    |> (fn c -> c -- [node] end).()
+    |> Enum.map(fn b -> {b,rbundle.tree |> Map.get(b),rbundle.ets |> :ets.lookup(b) |> Utils.ets_value(:bbox)} end)
+  end
+
+  # Find a good slot (at bros/brothers list) for the box, it means that the brother hasnt the max childs and the box is at the limits of his own
+  defp good_slot?(rbundle,bros,box)do
+    bros |> Enum.find(fn {_bid,bchilds,bbox} -> length(bchilds) < rbundle.max_width and Utils.contained?(bbox,box) end)
   end
 
 end
