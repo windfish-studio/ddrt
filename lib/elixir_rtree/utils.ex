@@ -73,7 +73,7 @@ defmodule ElixirRtree.Utils do
     a.xm <= b.xm and a.xM >= b.xM and a.ym <= b.ym and a.yM >= b.yM
   end
 
-  # Área que adicional de una caja al añadir un nuevo hijo
+  # Enlargement area after adding new box
   def enlargement_area(box,new_box)do
     a1 = area(box)
     a2 = combine_multiple([box,new_box]) |> area
@@ -96,6 +96,16 @@ defmodule ElixirRtree.Utils do
   # Return de the middle bounding box value
   def middle_value([{a,b},{c,d}])do
     (a + b + c + d) / 2
+  end
+
+  def get_posxy([{a,b},{c,d}])do
+    %{x: (b + a) / 2, y: (c + d) / 2 }
+  end
+
+  def box_move([{a,b},{c,d}],move)do
+    x = move[:x]
+    y = move[:y]
+    [{a+x,b+x},{c+y,d+y}]
   end
 
 

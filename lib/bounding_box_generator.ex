@@ -1,14 +1,20 @@
 defmodule BoundingBoxGenerator do
   @moduledoc false
-
+  require Logger
+  import IO.ANSI
   def generate(n,size,result)do
     s = size/2
     x = Enum.random(-180..180)
     y = Enum.random(-90..90)
-    new_result = [[{x-s,x+s},{y-s,y+s}]] ++ result
-    if n > 0, do: generate(n - 1, size, new_result), else: new_result
+    if n > 0, do: generate(n - 1, size, [[{x-s,x+s},{y-s,y+s}]] ++ result), else: result
   end
 
+  def single(pos,size)do
+    s = size
+    x = pos[:x]
+    y = pos[:y]
+    [[{x-s,x+s},{y-s,y+s}]]
+  end
 
   def gen_and_format(n,size,file)do
 
@@ -42,26 +48,30 @@ defmodule BoundingBoxGenerator do
   end
 
   def struggle_tree(n,size)do
+
+    boxes = generate(n,size,[]) |> Enum.with_index
+    t = Drtree.new
     t1 = :os.system_time(:microsecond)
-    boxes = generate(n,size,[])
-    t = ElixirRtree.new
-    tree = boxes |> Enum.with_index |> Enum.reduce(t,fn {b,i},acc ->
+    tree = boxes |> Enum.reduce(t,fn {b,i},acc ->
       acc |> ElixirRtree.insert({i,b})
     end)
-    t2 = :os.system_time(:microsecond)
-    IO.inspect "Insert #{n} leafs: #{t2-t1} µs"
+    time = :os.system_time(:microsecond) - t1
+    IO.inspect "#{time}"
     tree
   end
 
   def struggle_updates(mytree,n,size)do
-    t1 = :os.system_time(:microsecond)
+
     boxes = generate(n,size,[])
-    tree = boxes |> Enum.with_index |> Enum.reduce(mytree,fn {b,i},acc ->
-      acc |> ElixirRtree.update_leaf(i,b)
+    t1 = :os.system_time(:microsecond)
+    tree = boxes |> Enum.reduce(mytree,fn b,acc ->
+      acc |> ElixirRtree.update_leaf(Enum.random(0..n),b)
     end)
     t2 = :os.system_time(:microsecond)
-    IO.inspect "Updated #{n} leafs: #{t2-t1} µs"
+    Logger.warn(cyan<>"["<>color(195)<>"Update"<>cyan<>"]"<>yellow<>" #{n}"<>cyan<>" leafs took "<>yellow<>"#{t2-t1} µs")
     tree
   end
+
+
 
 end

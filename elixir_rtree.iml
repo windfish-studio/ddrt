@@ -7,10 +7,13 @@
       <sourceFolder url="file://$MODULE_DIR$/lib" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/spec" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/test" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/bench" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/_build/dev/lib/benchee" />
       <excludeFolder url="file://$MODULE_DIR$/_build/dev/lib/connection" />
       <excludeFolder url="file://$MODULE_DIR$/_build/dev/lib/cowboy" />
       <excludeFolder url="file://$MODULE_DIR$/_build/dev/lib/cowlib" />
       <excludeFolder url="file://$MODULE_DIR$/_build/dev/lib/db_connection" />
+      <excludeFolder url="file://$MODULE_DIR$/_build/dev/lib/deep_merge" />
       <excludeFolder url="file://$MODULE_DIR$/_build/dev/lib/dlex" />
       <excludeFolder url="file://$MODULE_DIR$/_build/dev/lib/grpc" />
       <excludeFolder url="file://$MODULE_DIR$/_build/dev/lib/gun" />
@@ -44,5 +47,9 @@
     <orderEntry type="library" name="dialyxir" level="project" />
     <orderEntry type="library" name="credo" level="project" />
     <orderEntry type="library" name="eqc_ex" level="project" />
+    <orderEntry type="library" name="benchee" level="project" />
+    <orderEntry type="library" name="deep_merge" level="project" />
+    <orderEntry type="library" name="ex_guard" level="project" />
+    <orderEntry type="library" name="excoveralls" level="project" />
   </component>
 </module>
