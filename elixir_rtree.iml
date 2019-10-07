@@ -21,6 +21,17 @@
       <excludeFolder url="file://$MODULE_DIR$/_build/dev/lib/protobuf" />
       <excludeFolder url="file://$MODULE_DIR$/_build/dev/lib/ranch" />
       <excludeFolder url="file://$MODULE_DIR$/_build/dev/lib/uuid" />
+      <excludeFolder url="file://$MODULE_DIR$/_build/test/lib/connection" />
+      <excludeFolder url="file://$MODULE_DIR$/_build/test/lib/cowboy" />
+      <excludeFolder url="file://$MODULE_DIR$/_build/test/lib/cowlib" />
+      <excludeFolder url="file://$MODULE_DIR$/_build/test/lib/db_connection" />
+      <excludeFolder url="file://$MODULE_DIR$/_build/test/lib/dlex" />
+      <excludeFolder url="file://$MODULE_DIR$/_build/test/lib/grpc" />
+      <excludeFolder url="file://$MODULE_DIR$/_build/test/lib/gun" />
+      <excludeFolder url="file://$MODULE_DIR$/_build/test/lib/jason" />
+      <excludeFolder url="file://$MODULE_DIR$/_build/test/lib/protobuf" />
+      <excludeFolder url="file://$MODULE_DIR$/_build/test/lib/ranch" />
+      <excludeFolder url="file://$MODULE_DIR$/_build/test/lib/uuid" />
       <excludeFolder url="file://$MODULE_DIR$/assets/node_modules/phoenix" />
       <excludeFolder url="file://$MODULE_DIR$/assets/node_modules/phoenix_html" />
       <excludeFolder url="file://$MODULE_DIR$/cover" />

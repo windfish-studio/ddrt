@@ -51,13 +51,13 @@ defmodule ElixirRtree.Utils do
     hd(list)
   end
 
-  # Returns de percent of the overlap area between box1 and box2
+  # Returns de percent of the overlap area (of the box1) between box1 and box2
   def overlap_area(box1,box2)do
     a = box1 |> format_bbox
     b = box2 |> format_bbox
     x_overlap = Kernel.max(0,Kernel.min(a.xM,b.xM) - Kernel.max(a.xm,b.xm))
     y_overlap = Kernel.max(0,Kernel.min(a.yM,b.yM) - Kernel.max(a.ym,b.ym))
-    (x_overlap * y_overlap) * 100 |> Kernel.trunc
+    ((x_overlap * y_overlap)/ area(box1)) * 100
   end
 
   # Return if those 2 boxes are overlapping
@@ -89,8 +89,12 @@ defmodule ElixirRtree.Utils do
   end
 
   # Return the area of a bounding box
-  def area([{a,b},{c,d}])do
+  def area([{a,b},{c,d}]) when ((b - a) * (d - c) != 0) do
     (b - a) * (d - c)
+  end
+
+  def area([{a,b},{c,d}])do
+    -1
   end
 
   # Return de the middle bounding box value

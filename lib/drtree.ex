@@ -4,12 +4,20 @@ defmodule Drtree do
   defdelegate query(tree,box), to: ElixirRtree
   defdelegate delete(tree,id), to: ElixirRtree
   defdelegate update_leaf(tree,id,update), to: ElixirRtree
+  defdelegate execute(tree), to: ElixirRtree
+
+
+  @opt_values %{
+    type: [:standalone,:merkle,:distributed],
+    access: [:protected, :public, :private]
+  }
 
   @defopts %{
     width: 6,
     type: :standalone,
     verbose: false, #TODO: This crazy american prefers Logger comparison than the verbose flag ùwú
     database: false,
+    access: :protected
   }
 
   def new()do
@@ -17,8 +25,24 @@ defmodule Drtree do
   end
 
   def new(opts)do
-    opts |> Map.keys |> Enum.reduce(@defopts, fn k,acc ->
+    good_keys = opts |> Map.keys |> Enum.filter(fn k -> constraints() |> Map.has_key?(k) and constraints()[k].(opts[k]) end)
+    good_keys |> Enum.reduce(@defopts, fn k,acc ->
       acc |> Map.put(k,opts[k])
     end) |> ElixirRtree.new
+  end
+
+
+  def default_params()do
+    @defopts
+  end
+
+  def constraints()do
+    %{
+      width: fn v -> v > 0 end,
+      type: fn v -> v in (@opt_values |> Map.get(:type)) end,
+      verbose: fn v -> is_boolean(v) end,
+      database: fn v -> is_boolean(v) end,
+      access: fn v -> v in (@opt_values |> Map.get(:access)) end
+    }
   end
 end

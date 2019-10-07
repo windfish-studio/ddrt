@@ -6,12 +6,9 @@ defmodule ElixirRtree do
 
   # Entre 1 y 64800. Bigger value => ^ updates speed, ~v query speed.
   @max_area 10800
-  @types [:standalone,:merklemap,:distributed]
-  @min_width 2
-  @default_width 6
 
   def new(opts)do
-    ets = :ets.new(:rtree,[:set])
+    ets = :ets.new(:rtree,[:set,opts[:access]])
     db = if opts[:database], do: setup_dgraph
     if opts[:verbose], do: Logger.configure([{:level,:debug}]), else: Logger.configure([{:level,:warn}])
 
@@ -139,6 +136,11 @@ defmodule ElixirRtree do
     update_leaf(tree,id,{rbundle.ets |> :ets.lookup(id) |> Utils.ets_value(:bbox),new_box})
   end
 
+  # Executes the entire tree
+  def execute(tree)do
+    rbundle = get_rbundle(tree)
+    rbundle.ets |> :ets.delete
+  end
   # Internal actions
   ## Insert
 
@@ -213,10 +215,12 @@ defmodule ElixirRtree do
 
     if is_root?(rbundle,n) do
       new_root = Node.new()
+      :ets.update_element(rbundle.ets,'root',{Utils.ets_index(:bbox),new_root})
       root_bbox = Utils.combine_multiple([node_n.bbox,new_node.bbox])
       :ets.insert(rbundle.ets,{new_root,root_bbox,:node})
       update_crush(rbundle,n,{Utils.ets_index(:bbox),node_n.bbox})
       :ets.insert(rbundle.ets,{new_node.id,new_node.bbox,:node})
+
       if rbundle.db do
         Dlex.transaction(rbundle.db, fn conn ->
           query = ~s|{ v as var(func: eq(identifier, "root"))
@@ -321,7 +325,6 @@ defmodule ElixirRtree do
     find_best_subtree(rbundle,get_root(rbundle),leaf,[])
   end
 
-  # TODO: Optimizar que no baje hasta tocar una :leaf (unidad), hacer que las leafs sean los nodos superiores de las unidades
   defp find_best_subtree(rbundle,root,{_id,box} = leaf,track)do
     childs = rbundle.tree |> Map.get(root)
     type = rbundle.ets |> :ets.lookup(root) |> Utils.ets_value(:type)
