@@ -1,18 +1,19 @@
+alias ElixirRtree.Node
 import IO.ANSI
 generate = fn n,s ->
-  BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {x,ElixirRtree.Node.new()} end)
+  BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {x,Node.new()} end)
 end
 
 new_tree = fn boxes,s ->
   boxes |> Enum.slice(0..s-1) |> Enum.reduce(Drtree.new,fn {b,i},acc ->
-    acc |> ElixirRtree.insert({i,b})
+    acc |> Drtree.insert({i,b})
   end)
 end
 
 boxes = generate.(100000,1)
 
 delete = fn t,id ->
-  ElixirRtree.delete(t,id)
+  Drtree.delete(t,id)
 end
 
 random_leaf = fn leafs,limit ->
@@ -24,7 +25,7 @@ reinsert_cache = fn t,{box,id} ->
 end
 
 Benchee.run(%{
-  red() <>"delete "<> cyan() <>"["<> color(195) <>"random leaf"<> cyan() <>"]" <> reset() =>
+  "delete [random leaf]" =>
     {fn {t,{_box,id} = leaf} ->
         delete.(t,id)
         {t,leaf}

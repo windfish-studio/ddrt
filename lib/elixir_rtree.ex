@@ -83,7 +83,7 @@ defmodule ElixirRtree do
   def insert(tree,{id,box} = leaf)do
     rbundle = get_rbundle(tree)
     if rbundle.ets |> :ets.member(id) do
-      if rbundle.verbose,do: Logger.info(cyan <>"["<>green<>"Insertion"<>cyan<>"] failed:" <> yellow <> " [#{id}] " <> cyan <> "already exists at tree." <> yellow <> " [Tip]"<> cyan <> " use " <> yellow <>"update_leaf/3")
+      if rbundle.verbose,do: Logger.info(cyan() <>"["<>green<>"Insertion"<>cyan()<>"] failed:" <> yellow() <> " [#{id}] " <> cyan() <> "already exists at tree." <> yellow() <> " [Tip]"<> cyan() <> " use " <> yellow() <>"update_leaf/3")
       tree
     else
       t1 = :os.system_time(:microsecond)
@@ -91,8 +91,8 @@ defmodule ElixirRtree do
       r = insertion(rbundle,path,leaf)
       |> recursive_update(tl(path),leaf,:insertion)
       t2 = :os.system_time(:microsecond)
-      if rbundle.verbose,do: Logger.info(cyan <>"["<>green<>"Insertion"<>cyan<>"] success: "<> yellow <> "[#{id}]" <> cyan <> " was inserted at" <> yellow <>" ['#{hd(path)}']")
-      if rbundle.verbose,do: Logger.info(cyan <>"["<>green<>"Insertion"<>cyan<>"] took" <> yellow <> " #{t2-t1} µs")
+      if rbundle.verbose,do: Logger.info(cyan() <>"["<>green<>"Insertion"<>cyan()<>"] success: "<> yellow() <> "[#{id}]" <> cyan() <> " was inserted at" <> yellow() <>" ['#{hd(path)}']")
+      if rbundle.verbose,do: Logger.info(cyan() <>"["<>green<>"Insertion"<>cyan()<>"] took" <> yellow() <> " #{t2-t1} µs")
       r
     end
   end
@@ -102,52 +102,35 @@ defmodule ElixirRtree do
     t1 = :os.system_time(:microsecond)
     r = find_match_leafs(rbundle,box,[get_root(rbundle)],[],[])
     t2 = :os.system_time(:microsecond)
-    if rbundle.verbose,do: Logger.info(cyan <> "["<>color(201)<>"Query"<>cyan<>"] box " <> yellow <> "#{box |> Kernel.inspect} " <> cyan <> "took " <> yellow <> "#{t2-t1} µs")
+    if rbundle.verbose,do: Logger.info(cyan() <> "["<>color(201)<>"Query"<>cyan()<>"] box " <> yellow() <> "#{box |> Kernel.inspect} " <> cyan() <> "took " <> yellow() <> "#{t2-t1} µs")
     r
   end
 
   def delete(tree,id)do
     rbundle = get_rbundle(tree)
     t1 = :os.system_time(:microsecond)
-    r = remove(rbundle,id)
+    r = if(rbundle.ets |> :ets.member(id)) do
+      remove(rbundle,id)
+    else
+      tree
+    end
     t2 = :os.system_time(:microsecond)
-    if rbundle.verbose,do: Logger.info(cyan <>"["<>color(124)<>"Delete"<>cyan<>"] leaf "<>yellow<>"[#{id}]"<>cyan<>" took "<>yellow<>"#{t2-t1} µs")
+    if rbundle.verbose,do: Logger.info(cyan() <>"["<>color(124)<>"Delete"<>cyan()<>"] leaf "<>yellow()<>"[#{id}]"<>cyan()<>" took "<>yellow()<>"#{t2-t1} µs")
     r
   end
 
-  def update_leaf(tree,id,{old_box,new_box})do
+  def update_leaf(tree,id,{old_box,new_box} = boxes)do
     rbundle = get_rbundle(tree)
-    t1 = :os.system_time(:microsecond)
-    parent = rbundle.tree |> Map.get(:parents) |> Map.get(id)
-    parent_box = rbundle.ets |> :ets.lookup(parent) |> Utils.ets_value(:bbox)
-    rbundle |> update_crush(id,{Utils.ets_index(:bbox),new_box})
-
-    r = if Utils.contained?(parent_box,new_box)do
-      if Utils.in_border?(parent_box,old_box)do
-        if rbundle.verbose,do: Logger.info(cyan<>"["<>color(195)<>"Update"<>cyan<>"] Good case: new box "<>yellow<>"(#{new_box |> Kernel.inspect})"<>cyan<>" of "<>yellow<>"[#{id}]"<>cyan<>" reduce the parent "<>yellow<>"(['#{parent}'])"<>cyan<>" box")
-        rbundle |> recursive_update(parent,old_box,:deletion)
-      else
-        if rbundle.verbose,do: Logger.info(cyan<>"["<>color(195)<>"Update"<>cyan<>"] Best case: new box "<>yellow<>"(#{new_box |> Kernel.inspect})"<>cyan<>" of "<>yellow<>"[#{id}]"<>cyan<>" was contained by his parent "<>yellow<>"(['#{parent}'])")
-        tree
-      end
+    if rbundle.ets |> :ets.member(id) do
+      t1 = :os.system_time(:microsecond)
+      r = update(rbundle,id,boxes)
+      t2 = :os.system_time(:microsecond)
+      if rbundle.verbose,do: Logger.info(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] "<>yellow()<>"[#{id}]"<>cyan()<>" from "<>yellow()<>"#{old_box |> Kernel.inspect}"<>cyan()<>" to "<>yellow()<>"#{new_box |> Kernel.inspect}"<>cyan()<>" took "<>yellow()<>"#{t2-t1} µs")
+      r
     else
-      case rbundle |> node_brothers(parent) |> (fn b -> good_slot?(rbundle,b,new_box) end).() do
-        {new_parent,_new_brothers,_new_parent_box} ->
-          if rbundle.verbose,do: Logger.info(cyan<>"["<>color(195)<>"Update"<>cyan<>"] Neutral case: new box "<>yellow<>"(#{new_box |> Kernel.inspect})"<>cyan<>" of "<>yellow<>"[#{id}]"<>cyan<>" increases the parent box but there is an available slot at one uncle "<>yellow<>"(['#{new_parent}'])")
-          triple_s(rbundle,parent,new_parent,{id,old_box})
-
-        nil ->  if Utils.area(parent_box) >= @max_area do
-                  if rbundle.verbose,do: Logger.info(cyan<>"["<>color(195)<>"Update"<>cyan<>"] Worst case: new box "<>yellow<>"(#{new_box |> Kernel.inspect})"<>cyan<>" of "<>yellow<>"[#{id}]"<>cyan<>" increases the parent box which was so big "<>yellow<>"#{(((Utils.area(parent_box) |> Kernel.trunc)/@max_area) * 100) |> Kernel.trunc } %. "<>cyan<>"So we proceed to delete "<>yellow<>"[#{id}]"<>cyan<>" and reinsert at tree")
-                  rbundle |> top_down({id,new_box})
-                else
-                  if rbundle.verbose,do: Logger.info(cyan<>"["<>color(195)<>"Update"<>cyan<>"] Bad case: new box "<>yellow<>"(#{new_box |> Kernel.inspect})"<>cyan<>" of "<>yellow<>"[#{id}]"<>cyan<>" increases the parent box which isn't that big yet "<>yellow<>"#{(((Utils.area(parent_box) |> Kernel.trunc)/@max_area) * 100) |> Kernel.trunc} %. "<>cyan<>"So we proceed to increase parent "<>yellow<>"(['#{parent}'])"<>cyan<>" box")
-                  rbundle |> recursive_update(parent,new_box,:insertion)
-               end
-      end
+      if rbundle.verbose,do: Logger.warn(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] "<>yellow()<>"[#{id}] doesn't exists"<>cyan())
+      tree
     end
-    t2 = :os.system_time(:microsecond)
-    if rbundle.verbose,do: Logger.info(cyan<>"["<>color(195)<>"Update"<>cyan<>"] "<>yellow<>"[#{id}]"<>cyan<>" from "<>yellow<>"#{old_box |> Kernel.inspect}"<>cyan<>" to "<>yellow<>"#{new_box |> Kernel.inspect}"<>cyan<>" took "<>yellow<>"#{t2-t1} µs")
-    r
   end
 
   # You dont need to know old_box but is a BIT slower
@@ -448,6 +431,39 @@ defmodule ElixirRtree do
       end
       rbundle.ets |> :ets.update_element(id,{Utils.ets_index(:bbox),[{0,0},{0,0}]})
       rbundle.tree
+    end
+  end
+
+  ## Hard update
+
+  defp update(rbundle,id,{old_box,new_box})do
+
+    parent = rbundle.tree |> Map.get(:parents) |> Map.get(id)
+    parent_box = rbundle.ets |> :ets.lookup(parent) |> Utils.ets_value(:bbox)
+    rbundle |> update_crush(id,{Utils.ets_index(:bbox),new_box})
+
+    if Utils.contained?(parent_box,new_box)do
+      if Utils.in_border?(parent_box,old_box)do
+        if rbundle.verbose,do: Logger.info(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] Good case: new box "<>yellow()<>"(#{new_box |> Kernel.inspect})"<>cyan()<>" of "<>yellow()<>"[#{id}]"<>cyan()<>" reduce the parent "<>yellow()<>"(['#{parent}'])"<>cyan()<>" box")
+        rbundle |> recursive_update(parent,old_box,:deletion)
+      else
+        if rbundle.verbose,do: Logger.info(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] Best case: new box "<>yellow()<>"(#{new_box |> Kernel.inspect})"<>cyan()<>" of "<>yellow()<>"[#{id}]"<>cyan()<>" was contained by his parent "<>yellow()<>"(['#{parent}'])")
+        rbundle.tree
+      end
+    else
+      case rbundle |> node_brothers(parent) |> (fn b -> good_slot?(rbundle,b,new_box) end).() do
+        {new_parent,_new_brothers,_new_parent_box} ->
+          if rbundle.verbose,do: Logger.info(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] Neutral case: new box "<>yellow()<>"(#{new_box |> Kernel.inspect})"<>cyan()<>" of "<>yellow()<>"[#{id}]"<>cyan()<>" increases the parent box but there is an available slot at one uncle "<>yellow()<>"(['#{new_parent}'])")
+          triple_s(rbundle,parent,new_parent,{id,old_box})
+
+        nil ->  if Utils.area(parent_box) >= @max_area do
+                  if rbundle.verbose,do: Logger.info(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] Worst case: new box "<>yellow()<>"(#{new_box |> Kernel.inspect})"<>cyan()<>" of "<>yellow()<>"[#{id}]"<>cyan()<>" increases the parent box which was so big "<>yellow()<>"#{(((Utils.area(parent_box) |> Kernel.trunc)/@max_area) * 100) |> Kernel.trunc } %. "<>cyan()<>"So we proceed to delete "<>yellow()<>"[#{id}]"<>cyan()<>" and reinsert at tree")
+                  rbundle |> top_down({id,new_box})
+                else
+                  if rbundle.verbose,do: Logger.info(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] Bad case: new box "<>yellow()<>"(#{new_box |> Kernel.inspect})"<>cyan()<>" of "<>yellow()<>"[#{id}]"<>cyan()<>" increases the parent box which isn't that big yet "<>yellow()<>"#{(((Utils.area(parent_box) |> Kernel.trunc)/@max_area) * 100) |> Kernel.trunc} %. "<>cyan()<>"So we proceed to increase parent "<>yellow()<>"(['#{parent}'])"<>cyan()<>" box")
+                  rbundle |> recursive_update(parent,new_box,:insertion)
+                end
+      end
     end
   end
 

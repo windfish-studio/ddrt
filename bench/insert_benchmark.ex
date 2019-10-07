@@ -1,19 +1,20 @@
+alias ElixirRtree.Node
 import IO.ANSI
 generate = fn n,s ->
-  BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {x,ElixirRtree.Node.new()} end)
+  BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {x,Node.new()} end)
 end
 
 new_tree = fn leafs ->
   generate.(leafs,1)
   |> Enum.reduce(Drtree.new,fn {b,i},acc ->
-    acc |> ElixirRtree.insert({i,b})
+    acc |> Drtree.insert({i,b})
   end)
 end
 
 insert = fn t,data ->
   data
   |> Enum.reduce(t,fn {b,i},acc ->
-    acc |> ElixirRtree.insert({i,b})
+    acc |> Drtree.insert({i,b})
   end)
 end
 
@@ -22,25 +23,25 @@ flush_cache = fn t ->
 end
 
 Benchee.run(%{
-  green() <>"tree "<> cyan() <>"["<> color(195) <>"100000"<> cyan() <>"]" <> reset() =>
+  "tree [100000]" =>
     {fn {t,data} ->
         insert.(t,data)
   end,
     before_each: fn boxes -> {new_tree.(100000),boxes} end,
     after_each: fn rt -> flush_cache.(rt) end},
-  green() <>"tree "<> cyan() <>"["<> color(195) <>"10000"<> cyan() <>"]" <> reset() =>
+  "tree [10000]" =>
     {fn {t,data} ->
         insert.(t,data)
     end,
     before_each: fn boxes -> {new_tree.(10000),boxes} end,
     after_each: fn rt -> flush_cache.(rt) end},
-  green() <>"tree "<> cyan() <>"["<> color(195) <>"1000"<> cyan() <>"]" <> reset() =>
+  "tree [1000]" =>
     {fn {t,data} ->
           insert.(t,data)
     end,
     before_each: fn boxes -> {new_tree.(1000),boxes} end,
     after_each: fn rt -> flush_cache.(rt) end},
-  green() <>"tree "<> cyan() <>"["<> color(195) <>"empty"<> cyan() <>"]" <> reset() =>
+  "tree [empty]" =>
     { fn {t,data} ->
           insert.(t,data)
     end,

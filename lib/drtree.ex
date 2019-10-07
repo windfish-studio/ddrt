@@ -1,10 +1,14 @@
 defmodule Drtree do
   @moduledoc false
+  defdelegate insert(tree,leaf), to: ElixirRtree
+  defdelegate query(tree,box), to: ElixirRtree
+  defdelegate delete(tree,id), to: ElixirRtree
+  defdelegate update_leaf(tree,id,update), to: ElixirRtree
 
   @defopts %{
     width: 6,
     type: :standalone,
-    verbose: false,
+    verbose: false, #TODO: This crazy american prefers Logger comparison than the verbose flag ùwú
     database: false,
   }
 
@@ -17,5 +21,4 @@ defmodule Drtree do
       acc |> Map.put(k,opts[k])
     end) |> ElixirRtree.new
   end
-
 end
