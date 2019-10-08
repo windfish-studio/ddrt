@@ -1,7 +1,6 @@
-alias ElixirRtree.Node
 import IO.ANSI
 generate = fn n,s ->
-  BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {x,Node.new()} end)
+  BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {x,UUID.uuid1()} end)
 end
 
 new_tree = fn leafs ->
@@ -29,18 +28,6 @@ Benchee.run(%{
   end,
     before_each: fn boxes -> {new_tree.(100000),boxes} end,
     after_each: fn rt -> flush_cache.(rt) end},
-  "tree [10000]" =>
-    {fn {t,data} ->
-        insert.(t,data)
-    end,
-    before_each: fn boxes -> {new_tree.(10000),boxes} end,
-    after_each: fn rt -> flush_cache.(rt) end},
-  "tree [1000]" =>
-    {fn {t,data} ->
-          insert.(t,data)
-    end,
-    before_each: fn boxes -> {new_tree.(1000),boxes} end,
-    after_each: fn rt -> flush_cache.(rt) end},
   "tree [empty]" =>
     { fn {t,data} ->
           insert.(t,data)
@@ -52,4 +39,4 @@ Benchee.run(%{
           yellow() <> "1000 " <> green() <>"leafs" <> reset() => generate.(1000,1),
           yellow() <> "10000 " <> green() <>"leafs" <> reset() => generate.(10000,1),
           yellow() <> "100000 " <> green() <>"leafs" <> reset() => generate.(100000,1)
-}, time: 30)
+}, time: 5)

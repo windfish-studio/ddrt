@@ -1,10 +1,11 @@
 defmodule ElixirRtree.Node do
   @moduledoc false
 
-  @spec new()::charlist()
+  @spec new(%{},[integer()])::tuple()
 
-  def new()do
-    UUID.uuid1()
+  def new(gen,seed)do
+    gen[:next].(seed)
   end
+
 
 end

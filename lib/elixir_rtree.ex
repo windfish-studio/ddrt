@@ -5,17 +5,19 @@ defmodule ElixirRtree do
   import IO.ANSI
 
   # Entre 1 y 64800. Bigger value => ^ updates speed, ~v query speed.
-  @max_area 64800
+  @max_area 15000
 
   def new(opts)do
     ets = :ets.new(:rtree,[:set,opts[:access]])
     db = if opts[:database], do: setup_dgraph
     if opts[:verbose], do: Logger.configure([{:level,:debug}]), else: Logger.configure([{:level,:warn}])
 
-    node = Node.new()
+    {f,s} = :rand.seed(:exrop,opts[:seed])
+    {node,new_ticket} = Node.new(f,s)
 
     tree = %{
-      :metadata => %{params: opts, ets_table: ets, dgraph: db},
+      :metadata => %{params: opts, ets_table: ets, dgraph: db, seeding: f},
+      :ticket => new_ticket,
       :parents => %{},
       'root' => node,
        node => []
@@ -71,7 +73,8 @@ defmodule ElixirRtree do
       type: params[:type],
       ets: meta.ets_table,
       db: meta.dgraph,
-      parents: tree[:parents]
+      parents: tree[:parents],
+      seeding: meta[:seeding]
     }
   end
 
@@ -146,7 +149,6 @@ defmodule ElixirRtree do
 
   # triple - S (Structure Swifty Shift)
   def triple_s(rbundle,old_node,new_node,{id,box})do
-
     if rbundle.db do
       Dlex.transaction(rbundle.db, fn conn ->
         query = ~s|{ v as var(func: eq(identifier, "#{old_node}"))
@@ -176,15 +178,23 @@ defmodule ElixirRtree do
 
   defp insertion(rbundle,branch,{id,box} = leaf)do
 
+    t1 = :os.system_time(:microsecond)
     tree_update = add_entry(rbundle,hd(branch),leaf)
 
     childs = tree_update |> Map.get(hd(branch))
 
+    st1 = :os.system_time(:microsecond)
     final_tree = if length(childs) > rbundle.width do
       handle_overflow(%{rbundle | tree: tree_update, parents: tree_update |> Map.get(:parents)},branch)
     else
       tree_update
     end
+    st2 = :os.system_time(:microsecond)
+    #IO.inspect "overflow? -> #{st2-st1} us"
+
+
+    t2 = :os.system_time(:microsecond)
+    #IO.inspect "Insertion (entry + overflow?) -> #{t2-t1} us"
 
     %{rbundle | tree: final_tree}
   end
@@ -213,8 +223,11 @@ defmodule ElixirRtree do
 
     {node_n,new_node} = split(rbundle,n)
 
+    treeck = rbundle.tree |> Map.put(:ticket,new_node.next_ticket)
+
     if is_root?(rbundle,n) do
-      new_root = Node.new()
+      {new_root,ticket} = Node.new(rbundle.seeding,treeck |> Map.get(:ticket))
+      treeck = treeck |> Map.put(:ticket,ticket)
       :ets.update_element(rbundle.ets,'root',{Utils.ets_index(:bbox),new_root})
       root_bbox = Utils.combine_multiple([node_n.bbox,new_node.bbox])
       :ets.insert(rbundle.ets,{new_root,root_bbox,:node})
@@ -246,7 +259,7 @@ defmodule ElixirRtree do
       parents_update = new_node.childs |> Enum.reduce(parents_update,fn c,acc ->
         acc |> Map.put(c,new_node.id)
       end)
-      rbundle.tree |> Map.put(new_node.id,new_node.childs)
+      treeck |> Map.put(new_node.id,new_node.childs)
       |> Map.replace!(n,node_n.childs)
       |> Map.replace!('root',new_root)
       |> Map.put(new_root,[node_n.id,new_node.id])
@@ -265,7 +278,7 @@ defmodule ElixirRtree do
       parents_update = new_node.childs |> Enum.reduce(parents_update,fn c,acc ->
         acc |> Map.put(c,new_node.id)
       end)
-      updated_tree = rbundle.tree
+      updated_tree = treeck
                      |> Map.put(new_node.id,new_node.childs)
                      |> Map.put(:parents,parents_update)
                      |> Map.replace!(n,node_n.childs)
@@ -276,23 +289,23 @@ defmodule ElixirRtree do
   end
 
   defp split(rbundle,node)do
+
     sorted_nodes = rbundle.tree
                    |> Map.get(node)
                    |> Enum.map(fn n ->
-      bbox = rbundle.ets |> :ets.lookup(n) |> Utils.ets_value(:bbox)
-      {bbox |> Utils.middle_value,n,bbox}
-    end)
+                      bbox = rbundle.ets |> :ets.lookup(n) |> Utils.ets_value(:bbox)
+                      {bbox |> Utils.middle_value,n,bbox}
+                    end)
                    |> Enum.sort
                    |> Enum.map(fn {_x,y,z} -> {y,z} end)
 
     {n_id,n_bbox} = sorted_nodes
                     |> Enum.slice(0..((rbundle.width/2) - 1 |> Kernel.trunc)) |> Enum.unzip
 
-
     {dn_id,dn_bbox} = sorted_nodes
                       |> Enum.slice(((rbundle.width/2) |> Kernel.trunc)..length(sorted_nodes) - 1) |> Enum.unzip
-    new_node = Node.new()
 
+    {new_node,next_ticket} = Node.new(rbundle.seeding,rbundle.tree |> Map.get(:ticket))
     n_bounds = n_bbox |> Utils.combine_multiple
     dn_bounds = dn_bbox |> Utils.combine_multiple
     if rbundle.db do
@@ -317,8 +330,9 @@ defmodule ElixirRtree do
           ~s|uid(v) <childs> uid(c) .|,return_json: true)
       end)
     end
+
     {%{id: node, childs: n_id, bbox: n_bounds},
-      %{id: new_node, childs: dn_id, bbox: dn_bounds}}
+      %{id: new_node, childs: dn_id, bbox: dn_bounds, next_ticket: next_ticket}}
   end
 
   defp best_subtree(rbundle,leaf)do

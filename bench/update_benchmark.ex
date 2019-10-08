@@ -1,10 +1,9 @@
 alias ElixirRtree.Utils
-alias ElixirRtree.Node
 import IO.ANSI
 size = 1
 
 generate = fn n,s ->
-  BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {x,Node.new()} end)
+  BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {x,UUID.uuid1()} end)
 end
 
 new_tree = fn leafs ->
@@ -49,4 +48,4 @@ Benchee.run(%{
     cyan() <>"tree ["<> color(195) <>"1000" <> cyan() <> "]" <> reset() => 1000,
     cyan() <>"tree ["<> color(195) <>"10000" <> cyan() <> "]" <> reset() => 10000,
     cyan() <>"tree ["<> color(195) <>"100000" <> cyan() <> "]" <> reset() => 100000
-   }, time: 60)
+   }, time: 10)

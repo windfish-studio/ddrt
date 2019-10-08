@@ -41,7 +41,6 @@ defmodule DrtreeTest do
       assert Drtree.new(%{type: :standalone})[:metadata][:params] == %{Drtree.default_params | type: :standalone}
       refute Drtree.new(%{verbose: :wat})[:metadata][:params] == %{Drtree.default_params | verbose: :wat}
       refute Drtree.new(%{something: true})[:metadata][:params] == Drtree.default_params |> Map.put(:something,true)
-
     end
 
     test "raise badMapError with not map opts input" do
@@ -55,7 +54,7 @@ defmodule DrtreeTest do
   describe "[Drtree actions]" do
     test "insert new leaf on empty tree keeps consistency",state do
       empty_tree = Drtree.new
-      new_tuple = {new_node,new_box} = {Node.new,BoundingBoxGenerator.generate(1,1,[]) |> List.first}
+      new_tuple = {new_node,new_box} = {UUID.uuid1,BoundingBoxGenerator.generate(1,1,[]) |> List.first}
       ets = empty_tree[:metadata][:ets_table]
       inserted_tree = Drtree.insert(empty_tree,new_tuple)
       assert inserted_tree[new_node] == :leaf
@@ -73,14 +72,14 @@ defmodule DrtreeTest do
                    |> Drtree.insert({5,[{0,1},{-9,-8}]})
                    |> Drtree.insert({6,[{9,10},{9,10}]})
 
-
+      assert (full_tree |> Enum.to_list |> length) == full_tree |> Enum.uniq |> length
       assert length(full_tree |> Map.get(full_tree['root'])) == 2
       [{_id,box,_l}] = full_tree[:metadata][:ets_table] |> :ets.lookup(full_tree['root'])
       assert box == [{-50,36},{-10,41}]
       assert full_tree |> Drtree.execute
 
-      assert_raise ArgumentError, fn -> Drtree.insert(state.protected_tree,{Node.new,BoundingBoxGenerator.generate(1,1,[]) |> List.first}) end
-      assert_raise ArgumentError, fn -> Drtree.insert(state.private_tree,{Node.new,BoundingBoxGenerator.generate(1,1,[]) |> List.first}) end
+      assert_raise ArgumentError, fn -> Drtree.insert(state.protected_tree,{UUID.uuid1,BoundingBoxGenerator.generate(1,1,[]) |> List.first}) end
+      assert_raise ArgumentError, fn -> Drtree.insert(state.private_tree,{UUID.uuid1,BoundingBoxGenerator.generate(1,1,[]) |> List.first}) end
     end
 
     test "delete leaf keeps tree consistency",state do

@@ -1,7 +1,6 @@
-alias ElixirRtree.Node
 import IO.ANSI
 generate = fn n,s ->
-  BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {x,Node.new()} end)
+  BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {x,UUID.uuid1()} end)
 end
 
 new_tree = fn boxes,s ->

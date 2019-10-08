@@ -17,7 +17,8 @@ defmodule Drtree do
     type: :standalone,
     verbose: false, #TODO: This crazy american prefers Logger comparison than the verbose flag ùwú
     database: false,
-    access: :protected
+    access: :protected,
+    seed: 0
   }
 
   def new()do
@@ -42,7 +43,8 @@ defmodule Drtree do
       type: fn v -> v in (@opt_values |> Map.get(:type)) end,
       verbose: fn v -> is_boolean(v) end,
       database: fn v -> is_boolean(v) end,
-      access: fn v -> v in (@opt_values |> Map.get(:access)) end
+      access: fn v -> v in (@opt_values |> Map.get(:access)) end,
+      seed: fn v -> is_integer(v) end
     }
   end
 end
