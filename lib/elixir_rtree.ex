@@ -5,7 +5,7 @@ defmodule ElixirRtree do
   import IO.ANSI
 
   # Entre 1 y 64800. Bigger value => ^ updates speed, ~v query speed.
-  @max_area 10800
+  @max_area 64800
 
   def new(opts)do
     ets = :ets.new(:rtree,[:set,opts[:access]])

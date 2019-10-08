@@ -205,10 +205,48 @@ defmodule DrtreeTest do
 
   describe "[Drtree geometry operations]" do
     test "combination of bounding boxes" do
-      Utils.combine([{3,19},{-4,20}],[{-5,6},{-4,11}]) == [{-5,19},{-4,20}]
-      Utils.combine_multiple([[{3,19},{-4,20}],[{5,6},{-4,11}],[{0,0},{0,0}]]) == [{3,19},{-4,20}]
+      assert Utils.combine([{3,19},{-4,20}],[{-5,6},{-4,11}]) == [{-5,19},{-4,20}]
+      assert Utils.combine_multiple([[{3,19},{-4,20}],[{5,6},{-4,11}],[{0,0},{0,0}]]) == [{3,19},{-4,20}]
     end
 
+    test "overlapping of bounding boxes" do
+      refute Utils.overlap?([{0,0},{0,1}],[{1,2},{-1,5}])
+      assert Utils.overlap?([{1,2},{0,1}],[{1,2},{-1,5}])
+      refute Utils.overlap?([{10,12},{10,11}],[{1,2},{-1,5}])
+      assert Utils.overlap?([{0,10},{0,10}],[{0,5},{0,5}])
+
+      assert Utils.overlap_area([{0,0},{0,1}],[{1,2},{-1,5}]) == 0
+      assert Utils.overlap_area([{1,2},{0,1}],[{1,2},{-1,5}]) == 100
+      assert Utils.overlap_area([{10,12},{10,11}],[{1,2},{-1,5}]) == 0
+      assert Utils.overlap_area([{0,10},{0,10}],[{0,5},{0,5}]) == 25
+
+      refute Utils.contained?([{0,0},{0,1}],[{1,2},{-1,5}])
+      refute Utils.contained?([{1,2},{0,1}],[{1,2},{-1,5}])
+      refute Utils.contained?([{10,12},{10,11}],[{1,2},{-1,5}])
+      assert Utils.contained?([{0,10},{0,10}],[{0,5},{0,5}])
+      assert Utils.contained?([{0,10},{0,10}],[{0,0},{0,0}])
+
+      assert Utils.in_border?([{0,10},{0,10}],[{0,5},{0,5}])
+      refute Utils.in_border?([{10,12},{10,11}],[{1,2},{-1,5}])
+      refute Utils.in_border?([{0,10},{0,10}],[{2,5},{2,5}])
+    end
+
+    test "area operations" do
+      assert Utils.enlargement_area([{10,12},{10,11}],[{1,2},{-1,5}]) == 130
+      assert Utils.enlargement_area([{0,10},{0,10}],[{2,5},{2,5}]) == 0
+      assert Utils.enlargement_area([{0,10},{0,10}],[{0,5},{0,5}]) == 0
+
+      assert Utils.area([{0,0},{0,0}]) == -1
+      assert Utils.area([{0,1},{0,1}]) == 1
+      assert Utils.area([{-1,0},{0,1}]) == 1
+      assert Utils.area([{-10,0},{0,1}]) == 10
+
+      assert Utils.middle_value([{10,12},{10,11}]) == 43/2
+
+      assert Utils.get_posxy([{10,12},{10,11}]) == %{x: 11, y: 10.5}
+
+      assert Utils.box_move([{10,12},{10,11}],[x: 1,y: -1]) == [{11,13},{9,10}]
+    end
   end
 
 end

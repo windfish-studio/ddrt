@@ -57,7 +57,7 @@ defmodule ElixirRtree.Utils do
     b = box2 |> format_bbox
     x_overlap = Kernel.max(0,Kernel.min(a.xM,b.xM) - Kernel.max(a.xm,b.xm))
     y_overlap = Kernel.max(0,Kernel.min(a.yM,b.yM) - Kernel.max(a.ym,b.ym))
-    ((x_overlap * y_overlap)/ area(box1)) * 100
+    ((x_overlap * y_overlap)/area(box1)) * 100
   end
 
   # Return if those 2 boxes are overlapping
