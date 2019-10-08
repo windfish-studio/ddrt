@@ -39,6 +39,8 @@ defmodule DrtreeTest do
       assert Drtree.new(%{verbose: true})[:metadata][:params] == %{Drtree.default_params | verbose: true}
       assert Drtree.new(%{width: 10})[:metadata][:params] == %{Drtree.default_params | width: 10}
       assert Drtree.new(%{type: :standalone})[:metadata][:params] == %{Drtree.default_params | type: :standalone}
+      assert Drtree.new(%{seed: 11})[:metadata][:params] == %{Drtree.default_params | seed: 11}
+      refute Drtree.new(%{access: :nothing})[:metadata][:params] == %{Drtree.default_params | access: :public}
       refute Drtree.new(%{verbose: :wat})[:metadata][:params] == %{Drtree.default_params | verbose: :wat}
       refute Drtree.new(%{something: true})[:metadata][:params] == Drtree.default_params |> Map.put(:something,true)
     end

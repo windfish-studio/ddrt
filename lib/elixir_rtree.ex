@@ -5,7 +5,7 @@ defmodule ElixirRtree do
   import IO.ANSI
 
   # Entre 1 y 64800. Bigger value => ^ updates speed, ~v query speed.
-  @max_area 15000
+  @max_area 20000
 
   def new(opts)do
     ets = :ets.new(:rtree,[:set,opts[:access]])
@@ -83,15 +83,15 @@ defmodule ElixirRtree do
   def insert(tree,{id,box} = leaf)do
     rbundle = get_rbundle(tree)
     if rbundle.ets |> :ets.member(id) do
-      if rbundle.verbose,do: Logger.info(cyan() <>"["<>green<>"Insertion"<>cyan()<>"] failed:" <> yellow() <> " [#{id}] " <> cyan() <> "already exists at tree." <> yellow() <> " [Tip]"<> cyan() <> " use " <> yellow() <>"update_leaf/3")
+      if rbundle.verbose,do: Logger.debug(cyan() <>"["<>green<>"Insertion"<>cyan()<>"] failed:" <> yellow() <> " [#{id}] " <> cyan() <> "already exists at tree." <> yellow() <> " [Tip]"<> cyan() <> " use " <> yellow() <>"update_leaf/3")
       tree
     else
-      t1 = :os.system_time(:microsecond)
       path = best_subtree(rbundle,leaf)
+      t1 = :os.system_time(:microsecond)
       r = insertion(rbundle,path,leaf)
       |> recursive_update(tl(path),leaf,:insertion)
       t2 = :os.system_time(:microsecond)
-      if rbundle.verbose,do: Logger.info(cyan() <>"["<>green<>"Insertion"<>cyan()<>"] success: "<> yellow() <> "[#{id}]" <> cyan() <> " was inserted at" <> yellow() <>" ['#{hd(path)}']")
+      if rbundle.verbose,do: Logger.debug(cyan() <>"["<>green<>"Insertion"<>cyan()<>"] success: "<> yellow() <> "[#{id}]" <> cyan() <> " was inserted at" <> yellow() <>" ['#{hd(path)}']")
       if rbundle.verbose,do: Logger.info(cyan() <>"["<>green<>"Insertion"<>cyan()<>"] took" <> yellow() <> " #{t2-t1} µs")
       r
     end
@@ -109,7 +109,7 @@ defmodule ElixirRtree do
   def delete(tree,id)do
     rbundle = get_rbundle(tree)
     t1 = :os.system_time(:microsecond)
-    r = if(rbundle.ets |> :ets.member(id)) do
+    r = if rbundle.ets |> :ets.member(id) do
       remove(rbundle,id)
     else
       tree
@@ -169,7 +169,7 @@ defmodule ElixirRtree do
                   |> Map.update!(new_node, fn ch -> [id] ++ ch end)
                   |> Map.put(:parents,parents_update)
 
-    if length(old_node_childs_update) > 0 do
+    r = if length(old_node_childs_update) > 0 do
       %{rbundle | tree: tree_update |> Map.put(old_node,old_node_childs_update) , parents: parents_update} |> recursive_update(old_node,box,:deletion)
     else
       %{rbundle | tree: tree_update, parents: parents_update} |> remove(old_node)
@@ -178,23 +178,15 @@ defmodule ElixirRtree do
 
   defp insertion(rbundle,branch,{id,box} = leaf)do
 
-    t1 = :os.system_time(:microsecond)
     tree_update = add_entry(rbundle,hd(branch),leaf)
 
     childs = tree_update |> Map.get(hd(branch))
 
-    st1 = :os.system_time(:microsecond)
     final_tree = if length(childs) > rbundle.width do
       handle_overflow(%{rbundle | tree: tree_update, parents: tree_update |> Map.get(:parents)},branch)
     else
       tree_update
     end
-    st2 = :os.system_time(:microsecond)
-    #IO.inspect "overflow? -> #{st2-st1} us"
-
-
-    t2 = :os.system_time(:microsecond)
-    #IO.inspect "Insertion (entry + overflow?) -> #{t2-t1} us"
 
     %{rbundle | tree: final_tree}
   end
@@ -336,7 +328,7 @@ defmodule ElixirRtree do
   end
 
   defp best_subtree(rbundle,leaf)do
-    find_best_subtree(rbundle,get_root(rbundle),leaf,[])
+    r = find_best_subtree(rbundle,get_root(rbundle),leaf,[])
   end
 
   defp find_best_subtree(rbundle,root,{_id,box} = leaf,track)do
@@ -344,8 +336,7 @@ defmodule ElixirRtree do
     type = rbundle.ets |> :ets.lookup(root) |> Utils.ets_value(:type)
 
     if is_list(childs) and length(childs) > 0 do
-      index_result = get_best_candidate(rbundle,childs,box)
-      winner = childs |> Enum.at(index_result)
+      winner = get_best_candidate(rbundle,childs,box)
       new_track = [root] ++ track
       find_best_subtree(rbundle,winner,leaf,new_track)
     else
@@ -354,30 +345,20 @@ defmodule ElixirRtree do
   end
 
   defp get_best_candidate(rbundle,candidates,box)do
-    fits = candidates |> Enum.reduce_while(%{:area =>[] ,:enlargement => []},fn c,acc ->
+    win_entry = candidates |> Enum.reduce_while(%{id: :not_id,cost: :infinity},fn c,acc ->
       cbox = rbundle.ets |> :ets.lookup(c) |> Utils.ets_value(:bbox)
-      area = Utils.overlap_area(box,cbox)
-      new_acc = if area > 0, do: acc |> Map.delete(:enlargement), else: acc
-      new_acc = new_acc |> Map.update!(:area, fn l -> l ++ [area] end)
-      new_acc = if new_acc |> Map.has_key?(:enlargement)do
-        new_acc |> Map.update!(:enlargement, fn l -> l ++ [Utils.enlargement_area(box,cbox)] end)
+      if Utils.contained?(cbox,box)do
+        {:halt, %{id: c, cost: 0}}
       else
-        new_acc
+        enlargement = Utils.enlargement_area(cbox,box)
+        if enlargement < acc |> Map.get(:cost) do
+          {:cont, %{id: c, cost: enlargement}}
+        else
+          {:cont, acc}
+        end
       end
-      area_list = new_acc |> Map.get(:area)
-      n_c = length(area_list)
-      if Enum.sum(area_list) >= 100/n_c, do: {:halt, new_acc}, else: {:cont, new_acc}
     end)
-
-    {best_fit,list} = if fits |> Map.has_key?(:enlargement) do
-      l = fits |> Map.get(:enlargement)
-      {l |> Enum.min,l}
-    else
-      l = fits |> Map.get(:area)
-      {l |> Enum.max,l}
-    end
-
-    list |> Enum.find_index(fn e -> e == best_fit end)
+    win_entry[:id]
   end
 
   ## Query
@@ -457,27 +438,28 @@ defmodule ElixirRtree do
 
     parent = rbundle.tree |> Map.get(:parents) |> Map.get(id)
     parent_box = rbundle.ets |> :ets.lookup(parent) |> Utils.ets_value(:bbox)
+
     rbundle |> update_crush(id,{Utils.ets_index(:bbox),new_box})
 
-    if Utils.contained?(parent_box,new_box)do
+    r = if Utils.contained?(parent_box,new_box)do
       if Utils.in_border?(parent_box,old_box)do
-        if rbundle.verbose,do: Logger.info(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] Good case: new box "<>yellow()<>"(#{new_box |> Kernel.inspect})"<>cyan()<>" of "<>yellow()<>"[#{id}]"<>cyan()<>" reduce the parent "<>yellow()<>"(['#{parent}'])"<>cyan()<>" box")
+        if rbundle.verbose,do: Logger.debug(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] Good case: new box "<>yellow()<>"(#{new_box |> Kernel.inspect})"<>cyan()<>" of "<>yellow()<>"[#{id}]"<>cyan()<>" reduce the parent "<>yellow()<>"(['#{parent}'])"<>cyan()<>" box")
         rbundle |> recursive_update(parent,old_box,:deletion)
       else
-        if rbundle.verbose,do: Logger.info(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] Best case: new box "<>yellow()<>"(#{new_box |> Kernel.inspect})"<>cyan()<>" of "<>yellow()<>"[#{id}]"<>cyan()<>" was contained by his parent "<>yellow()<>"(['#{parent}'])")
+        if rbundle.verbose,do: Logger.debug(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] Best case: new box "<>yellow()<>"(#{new_box |> Kernel.inspect})"<>cyan()<>" of "<>yellow()<>"[#{id}]"<>cyan()<>" was contained by his parent "<>yellow()<>"(['#{parent}'])")
         rbundle.tree
       end
     else
       case rbundle |> node_brothers(parent) |> (fn b -> good_slot?(rbundle,b,new_box) end).() do
         {new_parent,_new_brothers,_new_parent_box} ->
-          if rbundle.verbose,do: Logger.info(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] Neutral case: new box "<>yellow()<>"(#{new_box |> Kernel.inspect})"<>cyan()<>" of "<>yellow()<>"[#{id}]"<>cyan()<>" increases the parent box but there is an available slot at one uncle "<>yellow()<>"(['#{new_parent}'])")
+          if rbundle.verbose,do: Logger.debug(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] Neutral case: new box "<>yellow()<>"(#{new_box |> Kernel.inspect})"<>cyan()<>" of "<>yellow()<>"[#{id}]"<>cyan()<>" increases the parent box but there is an available slot at one uncle "<>yellow()<>"(['#{new_parent}'])")
           triple_s(rbundle,parent,new_parent,{id,old_box})
 
         nil ->  if Utils.area(parent_box) >= @max_area do
-                  if rbundle.verbose,do: Logger.info(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] Worst case: new box "<>yellow()<>"(#{new_box |> Kernel.inspect})"<>cyan()<>" of "<>yellow()<>"[#{id}]"<>cyan()<>" increases the parent box which was so big "<>yellow()<>"#{(((Utils.area(parent_box) |> Kernel.trunc)/@max_area) * 100) |> Kernel.trunc } %. "<>cyan()<>"So we proceed to delete "<>yellow()<>"[#{id}]"<>cyan()<>" and reinsert at tree")
+                  if rbundle.verbose,do: Logger.debug(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] Worst case: new box "<>yellow()<>"(#{new_box |> Kernel.inspect})"<>cyan()<>" of "<>yellow()<>"[#{id}]"<>cyan()<>" increases the parent box which was so big "<>yellow()<>"#{(((Utils.area(parent_box) |> Kernel.trunc)/@max_area) * 100) |> Kernel.trunc } %. "<>cyan()<>"So we proceed to delete "<>yellow()<>"[#{id}]"<>cyan()<>" and reinsert at tree")
                   rbundle |> top_down({id,new_box})
                 else
-                  if rbundle.verbose,do: Logger.info(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] Bad case: new box "<>yellow()<>"(#{new_box |> Kernel.inspect})"<>cyan()<>" of "<>yellow()<>"[#{id}]"<>cyan()<>" increases the parent box which isn't that big yet "<>yellow()<>"#{(((Utils.area(parent_box) |> Kernel.trunc)/@max_area) * 100) |> Kernel.trunc} %. "<>cyan()<>"So we proceed to increase parent "<>yellow()<>"(['#{parent}'])"<>cyan()<>" box")
+                  if rbundle.verbose,do: Logger.debug(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] Bad case: new box "<>yellow()<>"(#{new_box |> Kernel.inspect})"<>cyan()<>" of "<>yellow()<>"[#{id}]"<>cyan()<>" increases the parent box which isn't that big yet "<>yellow()<>"#{(((Utils.area(parent_box) |> Kernel.trunc)/@max_area) * 100) |> Kernel.trunc} %. "<>cyan()<>"So we proceed to increase parent "<>yellow()<>"(['#{parent}'])"<>cyan()<>" box")
                   rbundle |> recursive_update(parent,new_box,:insertion)
                 end
       end
