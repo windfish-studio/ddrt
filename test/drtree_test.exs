@@ -52,6 +52,7 @@ defmodule DrtreeTest do
   end
 
   describe "[Drtree actions]" do
+
     test "insert new leaf on empty tree keeps consistency",state do
       empty_tree = Drtree.new
       new_tuple = {new_node,new_box} = {UUID.uuid1,BoundingBoxGenerator.generate(1,1,[]) |> List.first}

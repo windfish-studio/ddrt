@@ -1,9 +1,9 @@
-defmodule ElixirRtree.MixProject do
+defmodule DynamicRtree.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :elixir_rtree,
+      app: :dynamic_rtree,
       version: "0.1.0",
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,

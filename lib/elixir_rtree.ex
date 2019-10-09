@@ -9,8 +9,7 @@ defmodule ElixirRtree do
 
   def new(opts)do
     ets = :ets.new(:rtree,[:set,opts[:access]])
-    db = if opts[:database], do: setup_dgraph
-    if opts[:verbose], do: Logger.configure([{:level,:debug}]), else: Logger.configure([{:level,:warn}])
+    db = if opts[:database], do: setup_dgraph()
 
     {f,s} = :rand.seed(:exrop,opts[:seed])
     {node,new_ticket} = Node.new(f,s)
@@ -66,7 +65,7 @@ defmodule ElixirRtree do
   def get_rbundle(tree)do
     meta = tree[:metadata]
     params = meta.params
-    rbundle = %{
+    %{
       tree: tree,
       width: params[:width],
       verbose: params[:verbose],
@@ -80,10 +79,10 @@ defmodule ElixirRtree do
 
   # Actions
 
-  def insert(tree,{id,box} = leaf)do
+  def insert(tree,{id,_box} = leaf)do
     rbundle = get_rbundle(tree)
     if rbundle.ets |> :ets.member(id) do
-      if rbundle.verbose,do: Logger.debug(cyan() <>"["<>green<>"Insertion"<>cyan()<>"] failed:" <> yellow() <> " [#{id}] " <> cyan() <> "already exists at tree." <> yellow() <> " [Tip]"<> cyan() <> " use " <> yellow() <>"update_leaf/3")
+      if rbundle.verbose,do: Logger.debug(cyan() <>"["<>green()<>"Insertion"<>cyan()<>"] failed:" <> yellow() <> " [#{id}] " <> cyan() <> "already exists at tree." <> yellow() <> " [Tip]"<> cyan() <> " use " <> yellow() <>"update_leaf/3")
       tree
     else
       path = best_subtree(rbundle,leaf)
@@ -91,8 +90,8 @@ defmodule ElixirRtree do
       r = insertion(rbundle,path,leaf)
       |> recursive_update(tl(path),leaf,:insertion)
       t2 = :os.system_time(:microsecond)
-      if rbundle.verbose,do: Logger.debug(cyan() <>"["<>green<>"Insertion"<>cyan()<>"] success: "<> yellow() <> "[#{id}]" <> cyan() <> " was inserted at" <> yellow() <>" ['#{hd(path)}']")
-      if rbundle.verbose,do: Logger.info(cyan() <>"["<>green<>"Insertion"<>cyan()<>"] took" <> yellow() <> " #{t2-t1} µs")
+      if rbundle.verbose,do: Logger.debug(cyan() <>"["<>green()<>"Insertion"<>cyan()<>"] success: "<> yellow() <> "[#{id}]" <> cyan() <> " was inserted at" <> yellow() <>" ['#{hd(path)}']")
+      if rbundle.verbose,do: Logger.info(cyan() <>"["<>green()<>"Insertion"<>cyan()<>"] took" <> yellow() <> " #{t2-t1} µs")
       r
     end
   end
@@ -155,7 +154,7 @@ defmodule ElixirRtree do
   # triple - S (Structure Swifty Shift)
   def triple_s(rbundle,old_node,new_node,{id,box})do
     if rbundle.db do
-      Dlex.transaction(rbundle.db, fn conn ->
+      Dlex.transaction(rbundle.db, fn _conn ->
         query = ~s|{ v as var(func: eq(identifier, "#{old_node}"))
                       x as var(func: eq(identifier, "#{id}"))}|
         Dlex.delete(rbundle.db, query,
@@ -174,14 +173,14 @@ defmodule ElixirRtree do
                   |> Map.update!(new_node, fn ch -> [id] ++ ch end)
                   |> Map.put(:parents,parents_update)
 
-    r = if length(old_node_childs_update) > 0 do
+    if length(old_node_childs_update) > 0 do
       %{rbundle | tree: tree_update |> Map.put(old_node,old_node_childs_update) , parents: parents_update} |> recursive_update(old_node,box,:deletion)
     else
       %{rbundle | tree: tree_update, parents: parents_update} |> remove(old_node)
     end
   end
 
-  defp insertion(rbundle,branch,{id,box} = leaf)do
+  defp insertion(rbundle,branch,{_id,_box} = leaf)do
 
     tree_update = add_entry(rbundle,hd(branch),leaf)
 
@@ -232,7 +231,7 @@ defmodule ElixirRtree do
       :ets.insert(rbundle.ets,{new_node.id,new_node.bbox,:node})
 
       if rbundle.db do
-        Dlex.transaction(rbundle.db, fn conn ->
+        Dlex.transaction(rbundle.db, fn _conn ->
           query = ~s|{ v as var(func: eq(identifier, "root"))
                       x as var(func: eq(identifier, "#{node_n.id}"))}|
           Dlex.delete(rbundle.db, query,
@@ -312,7 +311,7 @@ defmodule ElixirRtree do
         "childs" => []
       })
 
-      Dlex.transaction(rbundle.db, fn conn ->
+      Dlex.transaction(rbundle.db, fn _conn ->
 
         query = ~s|{ v as var(func: eq(identifier, "#{node}"))
                     c as var(func: eq(identifier, #{dn_id |> Kernel.inspect(charlists: false)}))}|
@@ -333,7 +332,7 @@ defmodule ElixirRtree do
   end
 
   defp best_subtree(rbundle,leaf)do
-    r = find_best_subtree(rbundle,get_root(rbundle),leaf,[])
+    find_best_subtree(rbundle,get_root(rbundle),leaf,[])
   end
 
   defp find_best_subtree(rbundle,root,{_id,box} = leaf,track)do
@@ -466,7 +465,7 @@ defmodule ElixirRtree do
 
     rbundle |> update_crush(id,{Utils.ets_index(:bbox),new_box})
 
-    r = if Utils.contained?(parent_box,new_box)do
+    if Utils.contained?(parent_box,new_box)do
       if Utils.in_border?(parent_box,old_box)do
         if rbundle.verbose,do: Logger.debug(cyan()<>"["<>color(195)<>"Update"<>cyan()<>"] Good case: new box "<>yellow()<>"(#{new_box |> Kernel.inspect})"<>cyan()<>" of "<>yellow()<>"[#{id}]"<>cyan()<>" reduce the parent "<>yellow()<>"(['#{parent}'])"<>cyan()<>" box")
         rbundle |> recursive_update(parent,old_box,:deletion)
@@ -539,7 +538,7 @@ defmodule ElixirRtree do
       false
     else
       if rbundle.db do
-        Dlex.transaction(rbundle.db, fn conn ->
+        Dlex.transaction(rbundle.db, fn _conn ->
           query = ~s|{ v as var(func: eq(identifier, "#{node}"))}|
           Dlex.mutate!(rbundle.db, query,
             ~s|uid(v) <bounding> "#{new_bbox |> Kernel.inspect(charlists: false)}" .|,return_json: true)
@@ -551,9 +550,9 @@ defmodule ElixirRtree do
   end
 
   # Crush a value, not read needed.
-  defp update_crush(rbundle,node,{pos,value} = val)do
+  defp update_crush(rbundle,node,{_pos,value} = val)do
     if rbundle.db do
-      Dlex.transaction(rbundle.db, fn conn ->
+      Dlex.transaction(rbundle.db, fn _conn ->
         query = ~s|{ v as var(func: eq(identifier, "#{node}"))}|
         Dlex.mutate!(rbundle.db, query,
           ~s|uid(v) <bounding> "#{value |> Kernel.inspect(charlists: false)}" .|,return_json: true)

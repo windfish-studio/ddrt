@@ -42,7 +42,7 @@ defmodule ElixirRtree.Utils do
   #Combine multiple bbox
   def combine_multiple(list)when length(list) > 1 do
     real_list = list |> Enum.filter(fn x -> area(x) > 0 end)
-    tl(real_list) |> Enum.reduce(hd(real_list),fn [{a,b},{c,d}] = e, [{x,y},{z,w}] = acc ->
+    tl(real_list) |> Enum.reduce(hd(real_list),fn [{a,b},{c,d}] = _e, [{x,y},{z,w}] = _acc ->
       [{Kernel.min(a,x),Kernel.max(b,y)},{Kernel.min(c,z),Kernel.max(d,w)}]
     end)
   end
@@ -93,7 +93,7 @@ defmodule ElixirRtree.Utils do
     (b - a) * (d - c)
   end
 
-  def area([{a,b},{c,d}])do
+  def area([{_a,_b},{_c,_d}])do
     -1
   end
 
