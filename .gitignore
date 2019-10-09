@@ -26,3 +26,5 @@ elixir_rtree-*.tar
 /.idea/
 
 .DS_Store
+
+*.iml
