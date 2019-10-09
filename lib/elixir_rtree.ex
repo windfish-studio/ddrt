@@ -3,7 +3,7 @@ defmodule ElixirRtree do
   alias ElixirRtree.Utils
   require Logger
   import IO.ANSI
-
+  @moduledoc false
   # Entre 1 y 64800. Bigger value => ^ updates speed, ~v query speed.
   @max_area 20000
 
@@ -104,6 +104,11 @@ defmodule ElixirRtree do
     t2 = :os.system_time(:microsecond)
     if rbundle.verbose,do: Logger.info(cyan() <> "["<>color(201)<>"Query"<>cyan()<>"] box " <> yellow() <> "#{box |> Kernel.inspect} " <> cyan() <> "took " <> yellow() <> "#{t2-t1} µs")
     r
+  end
+
+  def query(tree,box,depth)do
+    rbundle = get_rbundle(tree)
+    find_match_depth(rbundle,box,[{get_root(rbundle),0}],[],depth)
   end
 
   def delete(tree,id)do
@@ -394,6 +399,26 @@ defmodule ElixirRtree do
                                         end end)
 
     if length(next_floor) > 0,do: explore_flood(rbundle,next_floor), else: flood
+  end
+
+  defp find_match_depth(rbundle,box,dig,leafs,depth)do
+    {f,cdepth} = hd(dig)
+    tail = if length(dig) > 1, do: tl(dig), else: []
+    fbox = rbundle.ets |> :ets.lookup(f) |> Utils.ets_value(:bbox)
+
+    {new_dig,new_leafs} = if Utils.overlap?(fbox,box)do
+      content = rbundle.tree |> Map.get(f)
+      if cdepth < depth and is_list(content) do
+        childs = content |> Enum.map(fn c -> {c,cdepth + 1} end)
+        {childs ++ tail,leafs}
+      else
+        {tail, [f] ++ leafs}
+      end
+    else
+      {tail,leafs}
+    end
+
+    if length(new_dig) > 0, do: find_match_depth(rbundle,box,new_dig,new_leafs,depth), else: new_leafs
   end
 
   ## Delete

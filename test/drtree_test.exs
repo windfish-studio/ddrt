@@ -1,7 +1,5 @@
 defmodule DrtreeTest do
   use ExUnit.Case
-  doctest Drtree
-  alias ElixirRtree.Node
   alias ElixirRtree.Utils
 
   def insert(t,leafs)do
@@ -139,6 +137,13 @@ defmodule DrtreeTest do
         assert Drtree.query(t,[{-100,100},{-100,100}]) |> Enum.sort == [0,1,2,3,4,5,6]
         assert Drtree.query(t,[{1,2},{1,2}]) == []
         assert Drtree.query(t,[{0,0},{0,0}]) == []
+        assert Drtree.query(t,[{4,5},{6,7}],0) == [33762080631324007]
+        assert Drtree.query(t,[{4,5},{6,7}],1) == [101671470050757358]
+        assert Drtree.query(t,[{4,5},{6,7}],2) == [0]
+        assert Drtree.query(t,[{4,5},{6,7}],1000) == [0]
+        assert Drtree.query(t,[{44,45},{-7,6}],0) == []
+        assert Drtree.query(t,[{44,45},{-7,6}],1) == []
+        assert Drtree.query(t,[{44,45},{-7,6}],2) == []
 
         assert t |> Drtree.execute
         nt = Drtree.new
