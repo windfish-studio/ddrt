@@ -25,3 +25,4 @@ elixir_rtree-*.tar
 # Ignore IntelliJ
 /.idea/
 
+.DS_Store
