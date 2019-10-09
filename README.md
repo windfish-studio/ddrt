@@ -1,4 +1,6 @@
 [![CircleCI](https://circleci.com/gh/windfish-studio/dynamic-rtree/tree/master.svg?style=svg)](https://circleci.com/gh/windfish-studio/dynamic-rtree/tree/master)
+![LICENSE](https://img.shields.io/hexpm/l/dynamic_rtree)
+![VERSION](https://img.shields.io/hexpm/v/dynamic_rtree)
 # DynamicRtree
 
  This is the API module of the elixir r-tree implementation where you can do the basic actions.
