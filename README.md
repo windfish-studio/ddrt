@@ -1,4 +1,5 @@
-# ElixirRtree
+# ElixirRtree 
+[![CircleCI](https://circleci.com/gh/windfish-studio/dynamic-rtree/tree/master.svg?style=svg)](https://circleci.com/gh/windfish-studio/dynamic-rtree/tree/master)
 
 **TODO: Add description**
 
