@@ -1,5 +1,5 @@
-# DynamicRtree
 [![CircleCI](https://circleci.com/gh/windfish-studio/dynamic-rtree/tree/master.svg?style=svg)](https://circleci.com/gh/windfish-studio/dynamic-rtree/tree/master)
+# DynamicRtree
 
  This is the API module of the elixir r-tree implementation where you can do the basic actions.
 
@@ -28,6 +28,7 @@ end
 ## Usage
 
 Everything is well defined and pretty at [documentation](https://hexdocs.pm/dynamic_rtree/0.1.0/Drtree.html).
+
 You can also find the hex package [here](https://hex.pm/packages/dynamic_rtree/0.1.0).
 
 
