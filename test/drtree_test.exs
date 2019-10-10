@@ -36,7 +36,7 @@ defmodule DrtreeTest do
       assert Drtree.new(%{database: false})[:metadata][:database] == nil
       assert Drtree.new(%{verbose: true})[:metadata][:params] == %{Drtree.default_params | verbose: true}
       assert Drtree.new(%{width: 10})[:metadata][:params] == %{Drtree.default_params | width: 10}
-      assert Drtree.new(%{type: :standalone})[:metadata][:params] == %{Drtree.default_params | type: :standalone}
+      assert Drtree.new(%{type: :standalone})[:metadata][:params] == %{Drtree.default_params | type: Map}
       assert Drtree.new(%{seed: 11})[:metadata][:params] == %{Drtree.default_params | seed: 11}
       refute Drtree.new(%{access: :nothing})[:metadata][:params] == %{Drtree.default_params | access: :public}
       refute Drtree.new(%{verbose: :wat})[:metadata][:params] == %{Drtree.default_params | verbose: :wat}
@@ -73,9 +73,10 @@ defmodule DrtreeTest do
                    |> Drtree.insert({5,[{0,1},{-9,-8}]})
                    |> Drtree.insert({6,[{9,10},{9,10}]})
 
+      root = full_tree |> Map.get('root')
       assert (full_tree |> Enum.to_list |> length) == full_tree |> Enum.uniq |> length
-      assert length(full_tree |> Map.get(full_tree['root'])) == 2
-      [{_id,box,_l}] = full_tree[:metadata][:ets_table] |> :ets.lookup(full_tree['root'])
+      assert length(full_tree |> Map.get(root)) == 2
+      [{_id,box,_l}] = full_tree[:metadata][:ets_table] |> :ets.lookup(root)
       assert box == [{-50,36},{-10,41}]
       assert full_tree |> Drtree.execute
 
@@ -110,12 +111,13 @@ defmodule DrtreeTest do
         acc |> Drtree.delete(i)
       end)
 
+      root = final_tree |> Map.get('root')
       [{_id,leaf_box,_l}] = ets |> :ets.lookup(0)
-      [{_id,root_box,_l}] = ets |> :ets.lookup(final_tree['root'])
-      assert length(final_tree |> Map.get(final_tree['root'])) == 1
+      [{_id,root_box,_l}] = ets |> :ets.lookup(root)
+      assert length(final_tree |> Map.get(root)) == 1
       assert leaf_box == root_box
-      assert length(final_tree |> Drtree.delete(0) |> Map.get(final_tree['root'])) == 0
-      [{_id,root_box,_l}] = ets |> :ets.lookup(final_tree['root'])
+      assert length(final_tree |> Drtree.delete(0) |> Map.get(root)) == 0
+      [{_id,root_box,_l}] = ets |> :ets.lookup(root)
       assert root_box == [{0,0},{0,0}]
       assert local_tree |> Drtree.execute
       assert_raise ArgumentError, fn -> Drtree.delete(state.protected_tree,19) end

@@ -3,27 +3,23 @@ generate = fn n,s ->
   BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {x,UUID.uuid1()} end)
 end
 
-new_tree = fn boxes,s ->
-  boxes |> Enum.slice(0..s-1) |> Enum.reduce(Drtree.new,fn {b,i},acc ->
+new_tree = fn boxes,typ ->
+  boxes |> Enum.reduce(Drtree.new(%{type: typ}),fn {b,i},acc ->
     acc |> Drtree.insert({i,b})
   end)
 end
 
-boxes = generate.(100000,1)
+boxes = generate.(1000,1)
 
 Benchee.run(%{
-  "tree [1000 leafs]" =>
+  "map" =>
   {fn {t,b} -> Drtree.query(t,b)
   end,
-  before_scenario: fn b -> {new_tree.(boxes,1000),b} end},
-  "tree [10000 leafs]" =>
-  {fn {t,b} -> Drtree.query(t,b)
-  end,
-  before_scenario: fn b -> {new_tree.(boxes,10000),b} end},
-  "tree [100000 leafs]" =>
+  before_scenario: fn b -> {new_tree.(boxes,Map),b} end},
+  "merklemap" =>
     {fn {t,b} -> Drtree.query(t,b)
   end,
-  before_scenario: fn b -> {new_tree.(boxes,100000),b} end},
+  before_scenario: fn b -> {new_tree.(boxes,MerkleMap),b} end},
 
 }, inputs: %{
   yellow() <> "1x1"<> cyan() <> " box query" <> reset() => [{0,1},{0,1}],

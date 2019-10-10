@@ -3,8 +3,8 @@ generate = fn n,s ->
   BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {x,UUID.uuid1()} end)
 end
 
-new_tree = fn boxes,s ->
-  boxes |> Enum.slice(0..s-1) |> Enum.reduce(Drtree.new,fn {b,i},acc ->
+new_tree = fn boxes,s,typ ->
+  boxes |> Enum.slice(0..s-1) |> Enum.reduce(Drtree.new(%{type: typ}),fn {b,i},acc ->
     acc |> Drtree.insert({i,b})
   end)
 end
@@ -24,17 +24,23 @@ reinsert_cache = fn t,{box,id} ->
 end
 
 Benchee.run(%{
-  "delete [random leaf]" =>
+  "map" =>
     {fn {t,{_box,id} = leaf} ->
         delete.(t,id)
         {t,leaf}
   end,
-    before_each: fn n -> {new_tree.(boxes,n),random_leaf.(boxes,n)} end,
+    before_each: fn n -> {new_tree.(boxes,n,Map),random_leaf.(boxes,n)} end,
+    after_each: fn {t,l} -> reinsert_cache.(t,l) end},
+  "merklemap" =>
+    {fn {t,{_box,id} = leaf} ->
+        delete.(t,id)
+        {t,leaf}
+  end,
+    before_each: fn n -> {new_tree.(boxes,n,MerkleMap),random_leaf.(boxes,n)} end,
     after_each: fn {t,l} -> reinsert_cache.(t,l) end}
 
 }, inputs: %{
-    cyan() <>"tree ["<> color(195) <>"1000" <> cyan() <> "]" <> reset() => 1000,
-    cyan() <>"tree ["<> color(195) <>"10000" <> cyan() <> "]" <> reset() => 10000,
-    cyan() <>"tree ["<> color(195) <>"100000" <> cyan() <> "]" <> reset() => 100000
+    cyan() <>"random leaf of tree ["<> color(195) <>"1000" <> cyan() <> "]" <> reset() => 1000,
+    cyan() <>"random leaf of tree ["<> color(195) <>"100000" <> cyan() <> "]" <> reset() => 100000
   }
 )

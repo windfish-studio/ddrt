@@ -1,6 +1,6 @@
 defmodule Drtree do
   @moduledoc """
-    This is the API module of the elixir r-tree implementation where you can do the basic actions.
+  This is the API module of the elixir r-tree implementation where you can do the basic actions.
 
   ## Actions provided:
       - insert/2
@@ -11,6 +11,8 @@ defmodule Drtree do
       - execute/1
 
   ## Important points:
+
+    If you want to use the `%{database: true}` option, you have to get dev dependencies.
 
     Every `id` inserted must be uniq, `Drtree` won't crush the duplicated `id`.
 
@@ -181,13 +183,13 @@ defmodule Drtree do
 
 
   @opt_values %{
-    type: [:standalone,:merkle,:distributed],
+    type: [Map,MerkleMap],
     access: [:protected, :public, :private]
   }
 
   @defopts %{
     width: 6,
-    type: :standalone,
+    type: Map,
     verbose: false, #TODO: This crazy american prefers Logger comparison than the verbose flag ùwú
     database: false,
     access: :protected,

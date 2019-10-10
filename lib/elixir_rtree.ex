@@ -14,15 +14,20 @@ defmodule ElixirRtree do
     {f,s} = :rand.seed(:exrop,opts[:seed])
     {node,new_ticket} = Node.new(f,s)
 
-    tree = %{
-      :metadata => %{params: opts, ets_table: ets, dgraph: db, seeding: f},
-      :ticket => new_ticket,
-      :parents => %{},
-      'root' => node,
-       node => []
-    }
+    tree_init = case opts[:type] do
+      Map -> %{}
+      MerkleMap -> %MerkleMap{}
+    end
 
-    :ets.insert(ets,{:metadata,Map.get(tree,:metadata)})
+    tree = tree_init
+           |> opts[:type].put(:metadata,%{params: opts, ets_table: ets, dgraph: db, seeding: f})
+           |> opts[:type].put(:ticket,new_ticket)
+           |> opts[:type].put(:parents,tree_init)
+           |> opts[:type].put('root',node)
+           |> opts[:type].put(node,[])
+
+
+    :ets.insert(ets,{:metadata,opts[:type].get(tree,:metadata)})
     :ets.insert(ets,{'root', node ,:root})
     :ets.insert(ets,{node,[{0,0},{0,0}],:node})
 
@@ -55,7 +60,7 @@ defmodule ElixirRtree do
   # Helpers
 
   def get_root(rbundle)do
-    rbundle.tree |> Map.get('root')
+    rbundle.tree |> rbundle[:type].get('root')
   end
 
   def is_root?(rbundle,node)do
@@ -167,14 +172,14 @@ defmodule ElixirRtree do
       end)
     end
 
-    parents_update = rbundle.parents |> Map.put(id,new_node)
-    old_node_childs_update = rbundle.tree |> Map.get(old_node) |> (fn n -> n -- [id] end).()
+    parents_update = rbundle.parents |> rbundle[:type].put(id,new_node)
+    old_node_childs_update = rbundle.tree |> rbundle[:type].get(old_node) |> (fn n -> n -- [id] end).()
     tree_update = rbundle.tree
-                  |> Map.update!(new_node, fn ch -> [id] ++ ch end)
-                  |> Map.put(:parents,parents_update)
+                  |> rbundle[:type].update!(new_node, fn ch -> [id] ++ ch end)
+                  |> rbundle[:type].put(:parents,parents_update)
 
     if length(old_node_childs_update) > 0 do
-      %{rbundle | tree: tree_update |> Map.put(old_node,old_node_childs_update) , parents: parents_update} |> recursive_update(old_node,box,:deletion)
+      %{rbundle | tree: tree_update |> rbundle[:type].put(old_node,old_node_childs_update) , parents: parents_update} |> recursive_update(old_node,box,:deletion)
     else
       %{rbundle | tree: tree_update, parents: parents_update} |> remove(old_node)
     end
@@ -184,10 +189,10 @@ defmodule ElixirRtree do
 
     tree_update = add_entry(rbundle,hd(branch),leaf)
 
-    childs = tree_update |> Map.get(hd(branch))
+    childs = tree_update |> rbundle[:type].get(hd(branch))
 
     final_tree = if length(childs) > rbundle.width do
-      handle_overflow(%{rbundle | tree: tree_update, parents: tree_update |> Map.get(:parents)},branch)
+      handle_overflow(%{rbundle | tree: tree_update, parents: tree_update |> rbundle[:type].get(:parents)},branch)
     else
       tree_update
     end
@@ -206,12 +211,12 @@ defmodule ElixirRtree do
          _:blank <identifier> "#{id}" .
          _:blank <bounding> "#{Kernel.inspect(box,charlists: false)}" .|,return_json: true)
     end
-    parents_update = rbundle.parents |> Map.put(id,node)
+    parents_update = rbundle.parents |> rbundle[:type].put(id,node)
 
     rbundle.tree
-    |> Map.update!(node,fn ch -> [id] ++ ch end)
-    |> Map.put(:parents,parents_update)
-    |> Map.put(id,:leaf)
+    |> rbundle[:type].update!(node,fn ch -> [id] ++ ch end)
+    |> rbundle[:type].put(:parents,parents_update)
+    |> rbundle[:type].put(id,:leaf)
   end
 
   defp handle_overflow(rbundle,branch)do
@@ -219,11 +224,11 @@ defmodule ElixirRtree do
 
     {node_n,new_node} = split(rbundle,n)
 
-    treeck = rbundle.tree |> Map.put(:ticket,new_node.next_ticket)
+    treeck = rbundle.tree |> rbundle[:type].put(:ticket,new_node.next_ticket)
 
     if is_root?(rbundle,n) do
-      {new_root,ticket} = Node.new(rbundle.seeding,treeck |> Map.get(:ticket))
-      treeck = treeck |> Map.put(:ticket,ticket)
+      {new_root,ticket} = Node.new(rbundle.seeding,treeck |> rbundle[:type].get(:ticket))
+      treeck = treeck |> rbundle[:type].put(:ticket,ticket)
       :ets.update_element(rbundle.ets,'root',{Utils.ets_index(:bbox),new_root})
       root_bbox = Utils.combine_multiple([node_n.bbox,new_node.bbox])
       :ets.insert(rbundle.ets,{new_root,root_bbox,:node})
@@ -250,16 +255,16 @@ defmodule ElixirRtree do
         end)
       end
       parents_update = rbundle.parents
-                       |> Map.put(node_n.id,new_root)
-                       |> Map.put(new_node.id,new_root)
+                       |> rbundle[:type].put(node_n.id,new_root)
+                       |> rbundle[:type].put(new_node.id,new_root)
       parents_update = new_node.childs |> Enum.reduce(parents_update,fn c,acc ->
-        acc |> Map.put(c,new_node.id)
+        acc |> rbundle[:type].put(c,new_node.id)
       end)
-      treeck |> Map.put(new_node.id,new_node.childs)
-      |> Map.replace!(n,node_n.childs)
-      |> Map.replace!('root',new_root)
-      |> Map.put(new_root,[node_n.id,new_node.id])
-      |> Map.put(:parents,parents_update)
+      treeck |> rbundle[:type].put(new_node.id,new_node.childs)
+      |> rbundle[:type].replace!(n,node_n.childs)
+      |> rbundle[:type].replace!('root',new_root)
+      |> rbundle[:type].put(new_root,[node_n.id,new_node.id])
+      |> rbundle[:type].put(:parents,parents_update)
     else
       parent = hd(tl(branch))
       update_crush(rbundle,n,{Utils.ets_index(:bbox),node_n.bbox})
@@ -270,24 +275,24 @@ defmodule ElixirRtree do
         Dlex.mutate!(rbundle.db, query,
           ~s|uid(v) <childs> uid(x) .|,return_json: true)
       end
-      parents_update = rbundle.parents |> Map.put(new_node.id,parent)
+      parents_update = rbundle.parents |> rbundle[:type].put(new_node.id,parent)
       parents_update = new_node.childs |> Enum.reduce(parents_update,fn c,acc ->
-        acc |> Map.put(c,new_node.id)
+        acc |> rbundle[:type].put(c,new_node.id)
       end)
       updated_tree = treeck
-                     |> Map.put(new_node.id,new_node.childs)
-                     |> Map.put(:parents,parents_update)
-                     |> Map.replace!(n,node_n.childs)
-                     |> Map.update!(parent,fn ch -> [new_node.id] ++ ch end)
+                     |> rbundle[:type].put(new_node.id,new_node.childs)
+                     |> rbundle[:type].put(:parents,parents_update)
+                     |> rbundle[:type].replace!(n,node_n.childs)
+                     |> rbundle[:type].update!(parent,fn ch -> [new_node.id] ++ ch end)
 
-      if length(updated_tree |> Map.get(parent)) > rbundle.width, do: handle_overflow(%{rbundle | tree: updated_tree, parents: parents_update},tl(branch)), else: updated_tree
+      if length(updated_tree |> rbundle[:type].get(parent)) > rbundle.width, do: handle_overflow(%{rbundle | tree: updated_tree, parents: parents_update},tl(branch)), else: updated_tree
     end
   end
 
   defp split(rbundle,node)do
 
     sorted_nodes = rbundle.tree
-                   |> Map.get(node)
+                   |> rbundle[:type].get(node)
                    |> Enum.map(fn n ->
                       bbox = rbundle.ets |> :ets.lookup(n) |> Utils.ets_value(:bbox)
                       {bbox |> Utils.middle_value,n,bbox}
@@ -301,7 +306,7 @@ defmodule ElixirRtree do
     {dn_id,dn_bbox} = sorted_nodes
                       |> Enum.slice(((rbundle.width/2) |> Kernel.trunc)..length(sorted_nodes) - 1) |> Enum.unzip
 
-    {new_node,next_ticket} = Node.new(rbundle.seeding,rbundle.tree |> Map.get(:ticket))
+    {new_node,next_ticket} = Node.new(rbundle.seeding,rbundle.tree |> rbundle[:type].get(:ticket))
     n_bounds = n_bbox |> Utils.combine_multiple
     dn_bounds = dn_bbox |> Utils.combine_multiple
     if rbundle.db do
@@ -336,7 +341,7 @@ defmodule ElixirRtree do
   end
 
   defp find_best_subtree(rbundle,root,{_id,box} = leaf,track)do
-    childs = rbundle.tree |> Map.get(root)
+    childs = rbundle.tree |> rbundle[:type].get(root)
     type = rbundle.ets |> :ets.lookup(root) |> Utils.ets_value(:type)
 
     if is_list(childs) and length(childs) > 0 do
@@ -373,7 +378,7 @@ defmodule ElixirRtree do
     fbox = rbundle.ets |> :ets.lookup(f) |> Utils.ets_value(:bbox)
 
     {new_dig,new_leafs,new_flood} = if Utils.overlap?(fbox,box)do
-        content = rbundle.tree |> Map.get(f)
+        content = rbundle.tree |> rbundle[:type].get(f)
         if is_atom(content) do
           {tail,[f] ++ leafs,flood}
         else
@@ -392,7 +397,7 @@ defmodule ElixirRtree do
 
   defp explore_flood(rbundle,flood)do
     next_floor = flood |> Enum.flat_map(fn x ->
-                                        case rbundle.tree |> Map.get(x) do
+                                        case rbundle.tree |> rbundle[:type].get(x) do
                                           :leaf -> []
                                           any -> any
                                         end end)
@@ -406,7 +411,7 @@ defmodule ElixirRtree do
     fbox = rbundle.ets |> :ets.lookup(f) |> Utils.ets_value(:bbox)
 
     {new_dig,new_leafs} = if Utils.overlap?(fbox,box)do
-      content = rbundle.tree |> Map.get(f)
+      content = rbundle.tree |> rbundle[:type].get(f)
       if cdepth < depth and is_list(content) do
         childs = content |> Enum.map(fn c -> {c,cdepth + 1} end)
         {childs ++ tail,leafs}
@@ -424,22 +429,22 @@ defmodule ElixirRtree do
 
   defp remove(rbundle,id)do
 
-    parent = rbundle.parents |> Map.get(id)
+    parent = rbundle.parents |> rbundle[:type].get(id)
 
     if parent do
       removed_bbox = rbundle.ets |> :ets.lookup(id) |> Utils.ets_value(:bbox)
       rbundle.ets |> :ets.delete(id)
-      parents_update = rbundle.parents |> Map.delete(id)
-      tree_updated = rbundle.tree |> Map.delete(id)
-      |> Map.update!(parent,fn ch -> ch -- [id] end)
-      |> Map.put(:parents,parents_update)
+      parents_update = rbundle.parents |> rbundle[:type].delete(id)
+      tree_updated = rbundle.tree |> rbundle[:type].delete(id)
+      |> rbundle[:type].update!(parent,fn ch -> ch -- [id] end)
+      |> rbundle[:type].put(:parents,parents_update)
       if rbundle.db do
         query = ~s|{ v as var(func: eq(identifier, "#{parent}"))
                     x as var(func: eq(identifier, "#{id}"))}|
         Dlex.delete(rbundle.db, query,
           ~s|uid(v) <childs> uid(x) .|,return_json: true)
       end
-      parent_childs = tree_updated |> Map.get(parent)
+      parent_childs = tree_updated |> rbundle[:type].get(parent)
       if length(parent_childs) > 0 do
         %{rbundle | tree: tree_updated, parents: parents_update} |> recursive_update(parent,removed_bbox,:deletion)
       else
@@ -460,7 +465,7 @@ defmodule ElixirRtree do
 
   defp update(rbundle,id,{old_box,new_box})do
 
-    parent = rbundle.tree |> Map.get(:parents) |> Map.get(id)
+    parent = rbundle.tree |> rbundle[:type].get(:parents) |> rbundle[:type].get(id)
     parent_box = rbundle.ets |> :ets.lookup(parent) |> Utils.ets_value(:bbox)
 
     rbundle |> update_crush(id,{Utils.ets_index(:bbox),new_box})
@@ -506,7 +511,7 @@ defmodule ElixirRtree do
   # Recursive bbox updates when u dont have node path from root, so you have to query parents map... (at delete)
   defp recursive_update(rbundle,node,box,mode)when is_list(node) |> Kernel.not do
     modified = update_node_bbox(rbundle,node,box,mode)
-    next = rbundle.parents |> Map.get(node)
+    next = rbundle.parents |> rbundle[:type].get(node)
     if modified and next, do: recursive_update(rbundle,next,box,mode), else: rbundle.tree
   end
 
@@ -521,7 +526,7 @@ defmodule ElixirRtree do
     new_bbox = case action do
       :insertion -> Utils.combine(node_box,the_box)
       :deletion -> if Utils.in_border?(node_box,the_box) do
-                      rbundle.tree |> Map.get(node)
+                      rbundle.tree |> rbundle[:type].get(node)
                       |> Enum.map(fn c ->
                         rbundle.ets |> :ets.lookup(c) |> Utils.ets_value(:bbox) end)
                       |> Utils.combine_multiple
@@ -563,11 +568,11 @@ defmodule ElixirRtree do
 
   # Return the brothers of the node [{brother_id, brother_childs, brother_box},...]
   defp node_brothers(rbundle,node)do
-    parent = rbundle.parents |> Map.get(node)
+    parent = rbundle.parents |> rbundle[:type].get(node)
     rbundle.tree
-    |> Map.get(parent)
+    |> rbundle[:type].get(parent)
     |> (fn c -> c -- [node] end).()
-    |> Enum.map(fn b -> {b,rbundle.tree |> Map.get(b),rbundle.ets |> :ets.lookup(b) |> Utils.ets_value(:bbox)} end)
+    |> Enum.map(fn b -> {b,rbundle.tree |> rbundle[:type].get(b),rbundle.ets |> :ets.lookup(b) |> Utils.ets_value(:bbox)} end)
   end
 
   # Find a good slot (at bros/brothers list) for the box, it means that the brother hasnt the max childs and the box is at the limits of his own
