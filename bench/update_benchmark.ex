@@ -1,73 +1,60 @@
 alias ElixirRtree.Utils
 import IO.ANSI
-size = 1
+
+Drtree.start_link(%{})
+Logger.configure([level: :info])
 
 generate = fn n,s ->
-  BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {x,UUID.uuid1()} end)
+  BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {UUID.uuid1(),x} end)
 end
 
 new_tree = fn leafs,typ ->
-  boxes = generate.(leafs,size)
-  tree = boxes |> Enum.reduce(Drtree.new(%{type: typ}),fn {b,i},acc ->
-    acc |> Drtree.insert({i,b})
-  end)
-  {boxes,tree}
+  Drtree.new(%{type: typ})
+  Drtree.insert(leafs)
 end
 
 unit_move = fn ->
   %{x: Enum.random([-1,1]), y: Enum.random([-1,1])}
 end
 
-
 Benchee.run(%{
   "map" =>
-    {fn {t,ml} ->
-        ml |> Enum.reduce(t,fn {id,ob,nb},acc ->
-          acc |> Drtree.update_leaf(id,{ob,nb})
-        end)
+    {fn ml ->
+        Drtree.update(ml)
     end,
-    before_each: fn _i -> [{_atom,t}] = :ets.lookup(:bench_tree,:tree)
-                          [{_atom,ml}] = :ets.lookup(:move_list,:move)
-                          {t,ml}
+    before_each: fn _i -> [{_atom,ml}] = :ets.lookup(:move_list,:move)
+                          ml
     end,
-    after_each: fn t -> :ets.insert(:bench_tree,{:tree,t})
-                          [{_atom,ml}] = :ets.lookup(:move_list,:move)
-                          new_ml = ml |> Enum.map(fn {id,_ob,nb} -> {id,nb,Utils.box_move(nb,unit_move.())} end)
+    after_each: fn _t ->   [{_atom,ml}] = :ets.lookup(:move_list,:move)
+                          new_ml = ml |> Enum.map(fn {id,{_ob,nb}} -> {id,{nb,Utils.box_move(nb,unit_move.())}} end)
                           :ets.insert(:move_list,{:move,new_ml})
     end,
-    before_scenario: fn n ->
-      {b,t} = new_tree.(n,Map)
-      move_list = b |> Enum.map(fn {box,id} -> {id,box,Utils.box_move(box,unit_move.())} end)
-      :ets.new(:bench_tree,[:set,:named_table])
+    before_scenario: fn boxes ->
+      new_tree.(boxes,Map)
+      move_list = boxes |> Enum.map(fn {id,box} -> {id,{box,Utils.box_move(box,unit_move.())}} end)
       :ets.new(:move_list,[:set,:named_table])
-      :ets.insert(:bench_tree,{:tree,t})
       :ets.insert(:move_list,{:move,move_list})
     end},
   "merklemap" =>
-    {fn {t,ml} ->
-        ml |> Enum.reduce(t,fn {id,ob,nb},acc ->
-                               acc |> Drtree.update_leaf(id,{ob,nb})
-        end)
+    {fn ml ->
+        Drtree.update(ml)
     end,
-    before_each: fn _i -> [{_atom,t}] = :ets.lookup(:bench_tree,:tree)
-                          [{_atom,ml}] = :ets.lookup(:move_list,:move)
-                          {t,ml}
+    before_each: fn _i -> [{_atom,ml}] = :ets.lookup(:move_list,:move)
+                          ml
     end,
-    after_each: fn t -> :ets.insert(:bench_tree,{:tree,t})
-                        [{_atom,ml}] = :ets.lookup(:move_list,:move)
-                        new_ml = ml |> Enum.map(fn {id,_ob,nb} -> {id,nb,Utils.box_move(nb,unit_move.())} end)
-                        :ets.insert(:move_list,{:move,new_ml})
+    after_each: fn t ->   [{_atom,ml}] = :ets.lookup(:move_list,:move)
+                          new_ml = ml |> Enum.map(fn {id,{_ob,nb}} -> {id,{nb,Utils.box_move(nb,unit_move.())}} end)
+                          :ets.insert(:move_list,{:move,new_ml})
     end,
-    before_scenario: fn n ->
-                        {b,t} = new_tree.(n,MerkleMap)
-                        move_list = b |> Enum.map(fn {box,id} -> {id,box,Utils.box_move(box,unit_move.())} end)
-                        :ets.new(:bench_tree,[:set,:named_table])
-                        :ets.new(:move_list,[:set,:named_table])
-                        :ets.insert(:bench_tree,{:tree,t})
-                        :ets.insert(:move_list,{:move,move_list})
-    end}
+    before_scenario: fn boxes ->
+      new_tree.(boxes,MerkleMap)
+      move_list = boxes |> Enum.map(fn {id,box} -> {id,{box,Utils.box_move(box,unit_move.())}} end)
+
+      :ets.new(:move_list,[:set,:named_table])
+      :ets.insert(:move_list,{:move,move_list})
+    end},
 
 }, inputs: %{
-    cyan() <>"all leafs of tree ["<> color(195) <>"1000" <> cyan() <> "]" <> reset() => 1000,
-    cyan() <>"all leafs of tree ["<> color(195) <>"100000" <> cyan() <> "]" <> reset() => 100000
+    cyan() <>"all leafs of tree ["<> color(195) <>"1000" <> cyan() <> "]" <> reset() => generate.(1000,1),
+    cyan() <>"all leafs of tree ["<> color(195) <>"100000" <> cyan() <> "]" <> reset() => generate.(100000,1)
    }, time: 10)

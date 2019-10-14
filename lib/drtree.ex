@@ -1,4 +1,9 @@
 defmodule Drtree do
+  use GenServer
+
+  defstruct metadata: nil,
+            tree: nil
+
   @moduledoc """
   This is the API module of the elixir r-tree implementation where you can do the basic actions.
 
@@ -75,8 +80,8 @@ defmodule Drtree do
       [0]
 
   """
-  @spec query(map(),bounding_box)::list(integer())
-  defdelegate query(tree,box), to: ElixirRtree
+  @spec bquery(map(),bounding_box)::list(integer())
+  defdelegate bquery(tree,box), to: ElixirRtree
   @doc """
   Find all nodes that match with the `box` query at the given `depth` of the r-tree.
 
@@ -88,8 +93,8 @@ defmodule Drtree do
     - `box`: Bounding box `[{x_min,x_max},{y_min,y_max}]`.
     - `depth`: Integer that define the query r-tree depth limit. Note: 0 is root node.
   """
-  @spec query(map(),bounding_box,integer())::list(integer())
-  defdelegate query(tree,box,depth), to: ElixirRtree
+  @spec bquery(map(),bounding_box,integer())::list(integer())
+  defdelegate bquery(tree,box,depth), to: ElixirRtree
   @doc """
   Delete the leaf with the given `id`.
 
@@ -214,7 +219,7 @@ defmodule Drtree do
   """
   @spec new()::map()
   def new()do
-    ElixirRtree.new(@defopts)
+    GenServer.call(Drtree,{:new,@defopts})
   end
 
   @doc """
@@ -256,15 +261,55 @@ defmodule Drtree do
       }
   """
   @spec new(%{})::map()
-  def new(opts)do
-    good_keys = opts |> Map.keys |> Enum.filter(fn k -> constraints() |> Map.has_key?(k) and constraints()[k].(opts[k]) end)
-    good_keys |> Enum.reduce(@defopts, fn k,acc ->
-      acc |> Map.put(k,opts[k])
-    end) |> ElixirRtree.new
+  def new(opts)when is_map(opts)do
+    GenServer.call(Drtree,{:new,opts})
+  end
+
+  def insert(leafs)when is_list(leafs)do
+    GenServer.call(Drtree,{:bulk_insert,leafs},:infinity)
+  end
+
+  def insert(leaf)do
+    GenServer.call(Drtree,{:insert,leaf})
+  end
+
+  def query(box)do
+    GenServer.call(Drtree,{:query,box})
+  end
+
+  def query(box,depth)do
+    GenServer.call(Drtree,{:query_depth,{box,depth}})
+  end
+
+  def delete(ids)when is_list(ids)do
+    GenServer.call(Drtree,{:bulk_delete,ids},:infinity)
+  end
+
+  def delete(id)do
+    GenServer.call(Drtree,{:delete,id})
+  end
+
+  def update(updates)when is_list(updates)do
+    GenServer.call(Drtree,{:bulk_update,updates},:infinity)
+  end
+
+  def update(id,update)do
+    GenServer.call(Drtree,{:update,{id,update}})
+  end
+
+  def execute()do
+    GenServer.call(Drtree,:execute)
+  end
+
+  def metadata()do
+    GenServer.call(Drtree,:metadata)
+  end
+
+  def tree()do
+    GenServer.call(Drtree,:tree)
   end
 
   @doc false
-
   def default_params()do
     @defopts
   end
@@ -279,4 +324,150 @@ defmodule Drtree do
       seed: fn v -> is_integer(v) end
     }
   end
+
+  defp filter_conf(opts)do
+    good_keys = opts |> Map.keys |> Enum.filter(fn k -> constraints() |> Map.has_key?(k) and constraints()[k].(opts[k]) end)
+    good_keys |> Enum.reduce(@defopts, fn k,acc ->
+      acc |> Map.put(k,opts[k])
+    end)
+  end
+
+  defp get_rbundle(state)do
+    meta = state.metadata
+    params = meta.params
+    %{
+      tree: state.tree,
+      width: params[:width],
+      verbose: params[:verbose],
+      type: params[:type],
+      ets: meta.ets_table,
+      db: meta.dgraph,
+      seeding: meta[:seeding]
+    }
+  end
+
+  def start_link(opts)do
+    GenServer.start_link(__MODULE__,opts, name: __MODULE__)
+  end
+
+
+  @impl true
+  def init(opts)do
+    conf = filter_conf(opts)
+    {t,meta} = ElixirRtree.new(conf)
+    {:ok, %__MODULE__{metadata: meta, tree: t}}
+  end
+
+  @impl true
+  def handle_call({:new,config},_from,state)do
+    if state.tree, do: get_rbundle(state) |> execute
+    conf = config |> filter_conf
+    {t,meta} = ElixirRtree.new(conf)
+    {:reply, {:ok,t} , %__MODULE__{metadata: meta, tree: t}}
+  end
+
+  @impl true
+  def handle_call({:insert,leaf},_from,state)do
+    r = {_atom,t} = case state.tree do
+      nil -> {:badtree,state.tree}
+      _ -> {:ok,get_rbundle(state) |> insert(leaf)}
+    end
+    {:reply, r , %__MODULE__{state | tree: t}}
+  end
+
+  @impl true
+  def handle_call({:bulk_insert,leafs},_from,state)do
+    r = {_atom,t} = case state.tree do
+      nil -> {:badtree,state.tree}
+      _ ->
+        final_rbundle = leafs |> Enum.reduce(get_rbundle(state), fn l,acc ->
+          %{acc | tree: acc |> insert(l)}
+        end)
+        {:ok,final_rbundle.tree}
+    end
+
+    {:reply, r , %__MODULE__{state | tree: t}}
+  end
+
+  @impl true
+  def handle_call({:query,box},_from,state)do
+    r = {_atom,_t} = case state.tree do
+      nil -> {:badtree, state.tree}
+      _ -> {:ok, get_rbundle(state) |> bquery(box)}
+    end
+    {:reply, r , state}
+  end
+
+  @impl true
+  def handle_call({:query_depth,{box,depth}},_from,state)do
+    r = {_atom,_t} = case state.tree do
+      nil -> {:badtree,state.tree}
+      _ -> {:ok,get_rbundle(state) |> bquery(box,depth)}
+    end
+    {:reply, r , state}
+  end
+
+  @impl true
+  def handle_call({:delete,id},_from,state)do
+    r = {_atom,t} = case state.tree do
+      nil -> {:badtree,state.tree}
+      _ -> {:ok,get_rbundle(state) |> delete(id)}
+    end
+    {:reply, r , %__MODULE__{state | tree: t}}
+  end
+
+  @impl true
+  def handle_call({:bulk_delete,ids},_from,state)do
+    r = {_atom,t} = case state.tree do
+      nil -> {:badtree,state.tree}
+      _ ->
+        final_rbundle = ids |> Enum.reduce(get_rbundle(state), fn id,acc ->
+          %{acc | tree: acc |> delete(id)}
+        end)
+        {:ok,final_rbundle.tree}
+    end
+    {:reply, r , %__MODULE__{state | tree: t}}
+  end
+
+  @impl true
+  def handle_call({:update,{id,update}},_from,state)do
+    r = {_atom,t} = case state.tree do
+      nil -> {:badtree,state.tree}
+      _ -> {:ok,get_rbundle(state) |> update_leaf(id,update)}
+    end
+
+    {:reply, r , %__MODULE__{state | tree: t}}
+  end
+
+  def handle_call({:bulk_update,updates},_from,state)do
+    r = {_atom,t} = case state.tree do
+      nil -> {:badtree,state.tree}
+      _ ->
+        final_rbundle = updates |> Enum.reduce(get_rbundle(state), fn {id,update} = _u,acc ->
+          %{acc | tree: acc |> update_leaf(id,update)}
+        end)
+        {:ok,final_rbundle.tree}
+    end
+    {:reply, r , %__MODULE__{state | tree: t}}
+  end
+
+  @impl true
+  def handle_call(:execute,_from,state)do
+    r = {_atom,_t} = case state.tree do
+      nil -> {:badtree,state.tree}
+      _ -> {:ok,get_rbundle(state) |> execute}
+    end
+    {:reply, r , %__MODULE__{metadata: nil, tree: nil}}
+  end
+
+  @impl true
+  def handle_call(:metadata,_from,state)do
+    {:reply, state.metadata , state}
+  end
+
+  @impl true
+  def handle_call(:tree,_from,state)do
+    {:reply, state.tree , state}
+  end
+
 end
