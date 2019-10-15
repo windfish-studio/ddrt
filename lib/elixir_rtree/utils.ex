@@ -12,10 +12,11 @@ defmodule ElixirRtree.Utils do
     }
   end
 
-  def ets_value([raw],atom)do
+  def tuple_value(raw,atom)do
     case atom do
-      :bbox -> raw |> elem(1)
-      :type -> raw |> elem(2)
+      :childs -> raw |> elem(0)
+      :dad -> raw |> elem(1)
+      :bbox -> raw |> elem(2)
     end
   end
 

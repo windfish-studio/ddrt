@@ -197,7 +197,7 @@ defmodule Drtree do
   @defopts %{
     width: 6,
     type: MerkleMap,
-    mode: :distributed,
+    mode: :standalone,
     verbose: false, #TODO: This crazy american prefers Logger comparison than the verbose flag ùwú
     database: false,
     access: :public,
@@ -358,7 +358,6 @@ defmodule Drtree do
       width: params[:width],
       verbose: params[:verbose],
       type: params[:type],
-      ets: meta.ets_table,
       db: meta.dgraph,
       seeding: meta[:seeding]
     }
