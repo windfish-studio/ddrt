@@ -17,7 +17,8 @@ defmodule DynamicRtree.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger],
+      mod: {Drtree.Application,[]}
     ]
   end
 
@@ -26,12 +27,14 @@ defmodule DynamicRtree.MixProject do
     [
       { :uuid , "~> 1.1"},
       { :dlex , git: "https://github.com/windfish-studio/dlex", branch: "master", only: :dev},
-      { :jason , "~> 1.0", only: :dev},
+      { :jason , "~> 1.0"},
       { :benchee, "~> 1.0", only: :dev},
       { :earmark, "~> 1.2", only: :dev},
       { :ex_doc, "~> 0.19", only: :dev},
       { :dialyxir, "~> 0.4", only: :dev},
-      { :merkle_map, "~> 0.2.0"}
+      { :merkle_map, "~> 0.2.0"},
+      { :libcluster, "~> 3.1.1"},
+      { :delta_crdt, "~> 0.5.0"}
 
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
