@@ -3,7 +3,8 @@ defmodule Drtree do
 
   defstruct metadata: nil,
             tree: nil,
-            listeners: []
+            listeners: [],
+            crdt: nil
 
   @moduledoc """
   This is the API module of the elixir r-tree implementation where you can do the basic actions.
@@ -55,8 +56,8 @@ defmodule Drtree do
       }
 
   """
-  @spec insert(map(),tuple())::map()
-  defdelegate insert(tree,leaf), to: ElixirRtree
+  @spec rinsert(map(),tuple())::map()
+  defdelegate rinsert(tree,leaf), to: ElixirRtree
   @doc """
   Find all leafs that match with the `box` query.
 
@@ -136,8 +137,8 @@ defmodule Drtree do
         'root' => 43143342109176739
       }
   """
-  @spec delete(map(),any())::map()
-  defdelegate delete(tree,id), to: ElixirRtree
+  @spec rdelete(map(),any())::map()
+  defdelegate rdelete(tree,id), to: ElixirRtree
   @doc """
   Update the leaf bounding box with the given `id`.
 
@@ -167,164 +168,71 @@ defmodule Drtree do
         ...
       }
   """
-  @spec update_leaf(map(),any(),{bounding_box,bounding_box} | {bounding_box})::map()
-  defdelegate update_leaf(tree,id,update), to: ElixirRtree
-  @doc """
-  Execute the `tree` RAM resources.
-
-  Returns `boolean()`
-
-  ## Parameters
-
-    - `tree`: Map that represents the r-tree structure.
-
-  ## Examples
-
-      iex> t = Drtree.new
-      iex> t |> Drtree.execute
-      true
-  """
-  @spec execute(map())::boolean()
-  defdelegate execute(tree), to: ElixirRtree
+  @spec rupdate_leaf(map(),any(),{bounding_box,bounding_box} | {bounding_box})::map()
+  defdelegate rupdate_leaf(tree,id,update), to: ElixirRtree
 
 
   @opt_values %{
     type: [Map,MerkleMap],
-    access: [:protected, :public, :private],
     mode: [:standalone, :distributed]
   }
 
   @defopts %{
     width: 6,
-    type: MerkleMap,
+    type: Map,
     mode: :standalone,
     verbose: false, #TODO: This crazy american prefers Logger comparison than the verbose flag ùwú
-    database: false,
-    access: :public,
     seed: 0
   }
 
-  @doc """
-  Create a new r-tree with default parameters.
 
-  Returns `map()`
-
-  ## Examples
-
-      iex> Drtree.new
-      %{
-        43143342109176739 => [],
-        :metadata => %{...},
-        :parents => %{},
-        :ticket => [19125803434255161 | 82545666616502197],
-        'root' => 43143342109176739
-      }
-  """
-  @spec new()::map()
-  def new()do
-    GenServer.call(Drtree,{:new,@defopts})
+  def new(opts \\ @defopts,name \\ __MODULE__)when is_map(opts)do
+    GenServer.call(name,{:new,opts})
   end
 
-  @doc """
-  Create a new r-tree with the given `opts`.
-
-  Returns `map()`
-
-  ## Parameters
-
-    - `width`: the node childs limit (the amplitude)
-    - `database`: the boolean flag that set the r-tree to a dgraph database (performance -825%)
-    - `verbose`: the boolean flag that set the logger output (performance -10%)
-    - `access`: the access permissions to the tree `[:public, :protected, :private]`
-    - `seed`: the seed for the r-tree middle nodes uuid
-
-  ## Examples
-
-      iex> Drtree.new(%{access: :public, width: 8})
-      %{
-        43143342109176739 => [],
-        :metadata => %{
-          dgraph: nil,
-          ets_table: #Reference<0.2361800908.1666318340.51022>,
-          params: %{
-            access: :public,
-            database: false,
-            seed: 0,
-            type: :standalone,
-            verbose: false,
-            width: 8
-          },
-          seeding: %{
-            ...
-          }
-        },
-        :parents => %{},
-        :ticket => [19125803434255161 | 82545666616502197],
-        'root' => 43143342109176739
-      }
-  """
-  @spec new(%{})::map()
-  def new(opts)when is_map(opts)do
-    GenServer.call(Drtree,{:new,opts})
+  def insert(_a,name \\ __MODULE__)
+  def insert(leafs,name)when is_list(leafs)do
+    GenServer.call(name,{:bulk_insert,leafs},:infinity)
+  end
+  def insert(leaf, name)do
+    GenServer.call(name,{:insert,leaf},:infinity)
   end
 
-  def insert(leafs)when is_list(leafs)do
-    GenServer.call(Drtree,{:bulk_insert,leafs},:infinity)
+  def query(box,name \\ __MODULE__)do
+    GenServer.call(name,{:query,box})
+  end
+  def pquery(box,depth,name \\ __MODULE__)do
+    GenServer.call(name,{:query_depth,{box,depth}})
   end
 
-  def insert(leaf)do
-    GenServer.call(Drtree,{:insert,leaf},:infinity)
+  def delete(_a,name \\ __MODULE__)
+  def delete(ids, name)when is_list(ids)do
+    GenServer.call(name,{:bulk_delete,ids},:infinity)
+  end
+  def delete(id, name)do
+    GenServer.call(name,{:delete,id})
   end
 
-  def query(box)do
-    GenServer.call(Drtree,{:query,box})
+  def updates(updates,name \\ __MODULE__)when is_list(updates)do
+    GenServer.call(name,{:bulk_update,updates},:infinity)
+  end
+  def update(id,update,name \\ __MODULE__)do
+    GenServer.call(name,{:update,{id,update}})
   end
 
-  def query(box,depth)do
-    GenServer.call(Drtree,{:query_depth,{box,depth}})
+  def metadata(name \\ __MODULE__)
+  def metadata(name)do
+    GenServer.call(name,:metadata)
   end
 
-  def delete(ids)when is_list(ids)do
-    GenServer.call(Drtree,{:bulk_delete,ids},:infinity)
+  def tree(name \\ __MODULE__)
+  def tree(name)do
+    GenServer.call(name,:tree)
   end
 
-  def delete(id)do
-    GenServer.call(Drtree,{:delete,id})
-  end
-
-  def update(updates)when is_list(updates)do
-    GenServer.call(Drtree,{:bulk_update,updates},:infinity)
-  end
-
-  def update(id,update)do
-    GenServer.call(Drtree,{:update,{id,update}})
-  end
-
-  def execute()do
-    GenServer.call(Drtree,:execute)
-  end
-
-  def metadata()do
-    GenServer.call(Drtree,:metadata)
-  end
-
-  def tree()do
-    GenServer.call(Drtree,:tree)
-  end
-
-  def merge_diffs(diffs)do
-    IO.inspect diffs
-    send(Drtree,{:merge_diff,diffs})
-  end
-
-  def add_neighbor(n)do
-    IO.inspect "#{Process.whereis(DrtreeCrdt) |> Kernel.inspect}, with #{[n] |> Kernel.inspect}"
-    DeltaCrdt.set_neighbours(Process.whereis(DrtreeCrdt), [n])
-  end
-
-  @doc false
-  def default_params()do
-    @defopts
+  def merge_diffs(_a,name \\ __MODULE__)
+  def merge_diffs(diffs,name)do
+    send(name,{:merge_diff,diffs})
   end
 
   defp is_distributed?(state)do
@@ -337,16 +245,15 @@ defmodule Drtree do
       type: fn v -> v in (@opt_values |> Map.get(:type)) end,
       mode: fn v -> v in (@opt_values |> Map.get(:mode)) end,
       verbose: fn v -> is_boolean(v) end,
-      database: fn v -> is_boolean(v) end,
-      access: fn v -> v in (@opt_values |> Map.get(:access)) end,
       seed: fn v -> is_integer(v) end
     }
   end
 
   defp filter_conf(opts)do
-    good_keys = opts |> Map.keys |> Enum.filter(fn k -> constraints() |> Map.has_key?(k) and constraints()[k].(opts[k]) end)
+    new_opts = if opts[:mode] == :distributed, do: Map.put(opts,:type,MerkleMap), else: opts
+    good_keys = new_opts |> Map.keys |> Enum.filter(fn k -> constraints() |> Map.has_key?(k) and constraints()[k].(new_opts[k]) end)
     good_keys |> Enum.reduce(@defopts, fn k,acc ->
-      acc |> Map.put(k,opts[k])
+      acc |> Map.put(k,new_opts[k])
     end)
   end
 
@@ -358,37 +265,35 @@ defmodule Drtree do
       width: params[:width],
       verbose: params[:verbose],
       type: params[:type],
-      db: meta.dgraph,
       seeding: meta[:seeding]
     }
   end
 
   def start_link(opts)do
-    GenServer.start_link(__MODULE__,opts, name: __MODULE__)
+    name = if opts[:name], do: opts[:name], else: __MODULE__
+    GenServer.start_link(__MODULE__,opts, name: name)
   end
 
   @impl true
   def init(opts)do
-    conf = filter_conf(opts)
+    conf = filter_conf(opts[:conf])
     {t,meta} = ElixirRtree.new(conf)
     listeners = Node.list
-    send_crdt(listeners)
-    :timer.sleep(10)
-    crdt_value = DeltaCrdt.read(DrtreeCrdt)
-
-    t = if crdt_value != %{} do
-      reconstruct_from_crdt(crdt_value)
+    t = if %{metadata: meta} |> is_distributed? do
+      DeltaCrdt.set_neighbours(opts[:crdt],Enum.map(Node.list, fn x -> {opts[:crdt],x} end))
+      :timer.sleep(10)
+      crdt_value = DeltaCrdt.read(opts[:crdt])
+      :net_kernel.monitor_nodes(true, node_type: :visible)
+      if crdt_value != %{}, do: reconstruct_from_crdt(crdt_value,t), else: t
     else
       t
     end
 
-    :net_kernel.monitor_nodes(true, node_type: :visible)
-    {:ok, %__MODULE__{metadata: meta, tree: t, listeners: listeners}}
+    {:ok, %__MODULE__{metadata: meta, tree: t, listeners: listeners, crdt: opts[:crdt]}}
   end
 
   @impl true
   def handle_call({:new,config},_from,state)do
-    if state.tree, do: get_rbundle(state) |> execute
     conf = config |> filter_conf
     {t,meta} = ElixirRtree.new(conf)
     {:reply, {:ok,t} , %__MODULE__{state | metadata: meta, tree: t}}
@@ -398,12 +303,12 @@ defmodule Drtree do
   def handle_call({:insert,leaf},_from,state)do
     r = {_atom,t} = case state.tree do
       nil -> {:badtree,state.tree}
-      _ -> {:ok,get_rbundle(state) |> insert(leaf)}
+      _ -> {:ok,get_rbundle(state) |> rinsert(leaf)}
     end
 
     if is_distributed?(state) do
       diffs = tree_diffs(state.tree,t)
-      sync_crdt(state.listeners,diffs)
+      sync_crdt(diffs,state.crdt)
     end
 
     {:reply, r , %__MODULE__{state | tree: t}}
@@ -415,14 +320,14 @@ defmodule Drtree do
       nil -> {:badtree,state.tree}
       _ ->
         final_rbundle = leafs |> Enum.reduce(get_rbundle(state), fn l,acc ->
-          %{acc | tree: acc |> insert(l)}
+          %{acc | tree: acc |> rinsert(l)}
         end)
         {:ok,final_rbundle.tree}
     end
 
     if is_distributed?(state) do
       diffs = tree_diffs(state.tree,t)
-      sync_crdt(state.listeners,diffs)
+      sync_crdt(diffs,state.crdt)
     end
 
     {:reply, r , %__MODULE__{state | tree: t}}
@@ -450,12 +355,12 @@ defmodule Drtree do
   def handle_call({:delete,id},_from,state)do
     r = {_atom,t} = case state.tree do
       nil -> {:badtree,state.tree}
-      _ -> {:ok,get_rbundle(state) |> delete(id)}
+      _ -> {:ok,get_rbundle(state) |> rdelete(id)}
     end
 
     if is_distributed?(state) do
       diffs = tree_diffs(state.tree,t)
-      sync_crdt(state.listeners,diffs)
+      sync_crdt(diffs,state.crdt)
     end
 
     {:reply, r , %__MODULE__{state | tree: t}}
@@ -467,14 +372,14 @@ defmodule Drtree do
       nil -> {:badtree,state.tree}
       _ ->
         final_rbundle = ids |> Enum.reduce(get_rbundle(state), fn id,acc ->
-          %{acc | tree: acc |> delete(id)}
+          %{acc | tree: acc |> rdelete(id)}
         end)
         {:ok,final_rbundle.tree}
     end
 
     if is_distributed?(state) do
       diffs = tree_diffs(state.tree,t)
-      sync_crdt(state.listeners,diffs)
+      sync_crdt(diffs,state.crdt)
     end
 
     {:reply, r , %__MODULE__{state | tree: t}}
@@ -484,42 +389,34 @@ defmodule Drtree do
   def handle_call({:update,{id,update}},_from,state)do
     r = {_atom,t} = case state.tree do
       nil -> {:badtree,state.tree}
-      _ -> {:ok,get_rbundle(state) |> update_leaf(id,update)}
+      _ -> {:ok,get_rbundle(state) |> rupdate_leaf(id,update)}
     end
 
     if is_distributed?(state) do
       diffs = tree_diffs(state.tree,t)
-      sync_crdt(state.listeners,diffs)
-    end
-
-    {:reply, r , %__MODULE__{state | tree: t}}
-  end
-
-  def handle_call({:bulk_update,updates},_from,state)do
-    r = {_atom,t} = case state.tree do
-      nil -> {:badtree,state.tree}
-      _ ->
-        final_rbundle = updates |> Enum.reduce(get_rbundle(state), fn {id,update} = _u,acc ->
-          %{acc | tree: acc |> update_leaf(id,update)}
-        end)
-        {:ok,final_rbundle.tree}
-    end
-
-    if is_distributed?(state) do
-      diffs = tree_diffs(state.tree,t)
-      sync_crdt(state.listeners,diffs)
+      sync_crdt(diffs,state.crdt)
     end
 
     {:reply, r , %__MODULE__{state | tree: t}}
   end
 
   @impl true
-  def handle_call(:execute,_from,state)do
-    r = {_atom,_t} = case state.tree do
+  def handle_call({:bulk_update,updates},_from,state)do
+    r = {_atom,t} = case state.tree do
       nil -> {:badtree,state.tree}
-      _ -> {:ok,get_rbundle(state) |> execute}
+      _ ->
+        final_rbundle = updates |> Enum.reduce(get_rbundle(state), fn {id,update} = _u,acc ->
+          %{acc | tree: acc |> rupdate_leaf(id,update)}
+        end)
+        {:ok,final_rbundle.tree}
     end
-    {:reply, r , %__MODULE__{state | metadata: nil, tree: nil}}
+
+    if is_distributed?(state) do
+      diffs = tree_diffs(state.tree,t)
+      sync_crdt(diffs,state.crdt)
+    end
+
+    {:reply, r , %__MODULE__{state | tree: t}}
   end
 
   @impl true
@@ -532,49 +429,45 @@ defmodule Drtree do
     {:reply, state.tree , state}
   end
 
+  # Distributed things
+
   @impl true
   def handle_info({:merge_diff,diff},state)do
-   new_tree = diff |> Enum.reduce(state.tree, fn {s,k,v},acc ->
-      case s do
-        :add -> acc |> MerkleMap.put(k,v)
-        :remove -> acc |> MerkleMap.delete(k)
+   new_tree = diff |> Enum.reduce(state.tree, fn x,acc ->
+      case x do
+        {:add,k,v} -> acc |> MerkleMap.put(k,v)
+        {:remove,k} -> acc |> MerkleMap.delete(k)
       end
     end)
 
     {:noreply , %__MODULE__{state | tree: new_tree}}
   end
 
-  def handle_info({:nodeup, node, opts}, state) do
-    :timer.sleep(1000)
-    send_crdt([node])
+  def handle_info({:nodeup, _node, _opts}, state) do
+    DeltaCrdt.set_neighbours(state.crdt,Enum.map(Node.list, fn x -> {state.crdt,x} end))
     {:noreply, %__MODULE__{state | listeners: Node.list}}
   end
 
   def handle_info({:nodedown, _node, _opts}, state) do
+    DeltaCrdt.set_neighbours(state.crdt,Enum.map(Node.list, fn x -> {state.crdt,x} end))
     {:noreply, %__MODULE__{state | listeners: Node.list}}
   end
 
-  def sync_crdt(to,diffs)when length(diffs) > 0 do
+  def sync_crdt(diffs,crdt)when length(diffs) > 0 do
     diffs |> Enum.each(fn {k,v} ->
       if v do
-        DeltaCrdt.mutate(DrtreeCrdt, :add, [k, v])
+        DeltaCrdt.mutate(crdt, :add, [k, v])
       else
-        DeltaCrdt.mutate(DrtreeCrdt, :remove, [k])
+        DeltaCrdt.mutate(crdt, :remove, [k])
       end
     end)
   end
 
-  def sync_others(to,diffs)do
+  def sync_crdt(_diffs,_crdt)do
   end
 
-  def send_crdt(to)do
-    to |> Enum.each(fn other ->
-      spawn_task(__MODULE__,:add_neighbor,other,[Process.whereis(DrtreeCrdt)])
-    end)
-  end
-
-  def reconstruct_from_crdt(map)do
-    map |> Enum.reduce(%MerkleMap{},fn {x,y},acc ->
+  def reconstruct_from_crdt(map,t)do
+    map |> Enum.reduce(t,fn {x,y},acc ->
       acc |> MerkleMap.put(x,y)
     end)
   end
@@ -584,14 +477,4 @@ defmodule Drtree do
     keys |> Enum.map(fn x -> {x,new_tree |> MerkleMap.get(x)} end)
   end
 
-  def spawn_task(module, fun, recipient, args) do
-    recipient
-    |> remote_supervisor()
-    |> Task.Supervisor.async(module, fun, args)
-    |> Task.await()
-  end
-
-  defp remote_supervisor(recipient) do
-    {DrtreeMerge.TaskSupervisor, recipient}
-  end
 end
