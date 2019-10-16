@@ -99,7 +99,7 @@ defmodule ElixirRtree do
 
   # triple - S (Structure Swifty Shift)
   def triple_s(rbundle,old_node,new_node,{id,box}) do
-    tuple_entry = {old_node_childs_update,daddy,bbox} = rbundle.tree |> rbundle[:type].get(old_node) |> (fn {n,d,b} -> {n -- [id],d,b} end).()
+    tuple_entry = {old_node_childs_update,_daddy,_bbox} = rbundle.tree |> rbundle[:type].get(old_node) |> (fn {n,d,b} -> {n -- [id],d,b} end).()
     tree_update = rbundle.tree
                   |> rbundle[:type].update!(new_node, fn {ch,d,b} -> {[id] ++ ch,d,b} end)
                   |> rbundle[:type].update!(id,fn {ch,_d,b} -> {ch,new_node,b} end)
@@ -146,7 +146,7 @@ defmodule ElixirRtree do
       |> rbundle[:type].replace!(:root,new_root)
       |> rbundle[:type].put(new_root,{[node_n.id,new_node.id],nil,root_bbox})
       new_node.childs |> Enum.reduce(treeck,fn c,acc ->
-        acc |> rbundle[:type].update!(c,fn {ch,d,b} -> {ch,new_node.id,b} end)
+        acc |> rbundle[:type].update!(c,fn {ch,_d,b} -> {ch,new_node.id,b} end)
       end)
     else
       parent = hd(tl(branch))
@@ -155,7 +155,7 @@ defmodule ElixirRtree do
        |> rbundle[:type].replace!(node_n.id,{node_n.childs,parent,node_n.bbox})
        |> rbundle[:type].update!(parent,fn {ch,d,b} -> {[new_node.id] ++ ch,d,Utils.combine_multiple([b,new_node.bbox])} end)
       updated_tree = new_node.childs |> Enum.reduce(treeck,fn c,acc ->
-        acc |> rbundle[:type].update!(c,fn {ch,d,b} -> {ch,new_node.id,b} end)
+        acc |> rbundle[:type].update!(c,fn {ch,_d,b} -> {ch,new_node.id,b} end)
       end)
 
       if length(updated_tree |> rbundle[:type].get(parent) |> elem(0)) > rbundle.width, do: handle_overflow(%{rbundle | tree: updated_tree},tl(branch)), else: updated_tree
@@ -301,7 +301,7 @@ defmodule ElixirRtree do
     parent = rbundle.tree |> rbundle[:type].get(id) |> Utils.tuple_value(:dad)
     parent_box = rbundle.tree |> rbundle[:type].get(parent) |> Utils.tuple_value(:bbox)
 
-    updated_tree = rbundle.tree |> rbundle[:type].update!(id, fn {ch,d,b} -> {ch,d,new_box} end)
+    updated_tree = rbundle.tree |> rbundle[:type].update!(id, fn {ch,d,_b} -> {ch,d,new_box} end)
     local_rbundle = %{rbundle | tree: updated_tree}
 
     if Utils.contained?(parent_box,new_box) do

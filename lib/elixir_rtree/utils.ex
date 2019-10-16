@@ -12,7 +12,7 @@ defmodule ElixirRtree.Utils do
     }
   end
 
-  def tuple_value(raw,atom)when raw == nil do
+  def tuple_value(raw,_atom)when raw == nil do
     nil
   end
 

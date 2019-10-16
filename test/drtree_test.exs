@@ -26,8 +26,7 @@ defmodule DrtreeTest do
 
     test "Map insert and bulk insert works as expected" do
       Drtree.new
-      metadata = Drtree.metadata
-      new_tuple = {new_node,new_box} = {UUID.uuid1,[{1,2},{3,4}]}
+      new_tuple = {new_node,_new_box} = {UUID.uuid1,[{1,2},{3,4}]}
       {:ok,t} = Drtree.insert(new_tuple)
       assert t == Drtree.tree
       {:ok,t2} = Drtree.insert(new_tuple)
@@ -35,15 +34,14 @@ defmodule DrtreeTest do
       {cont,parent,box} = t[new_node]
       assert cont == :leaf
       assert parent == t[:root]
-      assert box = [{1,2},{3,4}]
+      assert box == [{1,2},{3,4}]
 
       Drtree.new
       {:ok,t} = Drtree.insert([{0,[{4,5},{6,7}]},{1,[{-34,-33},{40,41}]},{2,[{-50,-49},{15,16}]},{3,[{33,34},{-10,-9}]},{4,[{35,36},{-9,-8}]},{5,[{0,1},{-9,-8}]},{6,[{9,10},{9,10}]}])
       assert t == Drtree.tree
-      metadata = Drtree.metadata
 
       root =  t[:root]
-      {ch,root_ptr,root_box} = t[root]
+      {ch,_root_ptr,root_box} = t[root]
       assert (t |> Enum.to_list |> length) == t |> Enum.uniq |> length
       assert length(ch) == 2
       assert root_box == [{-50,36},{-10,41}]
@@ -51,22 +49,20 @@ defmodule DrtreeTest do
 
     test "MerkleMap insert and bulk insert works as expected" do
       Drtree.new(%{type: MerkleMap})
-      metadata = Drtree.metadata
-      new_tuple = {new_node,new_box} = {UUID.uuid1,[{1,2},{3,4}]}
+      new_tuple = {new_node,_new_box} = {UUID.uuid1,[{1,2},{3,4}]}
       {:ok,t} = Drtree.insert(new_tuple)
       assert t == Drtree.tree
       {cont,parent,box} = t |> MerkleMap.get(new_node)
       assert cont == :leaf
       assert parent == t[:root]
-      assert box = [{1,2},{3,4}]
+      assert box == [{1,2},{3,4}]
 
       Drtree.new(%{type: MerkleMap})
       {:ok,t} = Drtree.insert([{0,[{4,5},{6,7}]},{1,[{-34,-33},{40,41}]},{2,[{-50,-49},{15,16}]},{3,[{33,34},{-10,-9}]},{4,[{35,36},{-9,-8}]},{5,[{0,1},{-9,-8}]},{6,[{9,10},{9,10}]}])
       assert t == Drtree.tree
-      metadata = Drtree.metadata
 
       root =  t |> MerkleMap.get(:root)
-      {ch,root_ptr,root_box} = t |> MerkleMap.get(root)
+      {ch,_root_ptr,root_box} = t |> MerkleMap.get(root)
       assert (t |> Enum.to_list |> length) == t |> Enum.uniq |> length
       assert length(ch) == 2
       assert root_box == [{-50,36},{-10,41}]
@@ -74,7 +70,6 @@ defmodule DrtreeTest do
 
     test "Map delete leaf keeps tree consistency" do
       Drtree.new
-      metadata = Drtree.metadata
       data = BoundingBoxGenerator.generate(100,1,[]) |> Enum.with_index |> Enum.map(fn {x,i} -> {i,x} end)
       {:ok,t} = Drtree.insert(data)
       delete_id = 90
@@ -97,7 +92,7 @@ defmodule DrtreeTest do
 
       {:ok,t} = Drtree.delete((1..100) |> Enum.map(fn x -> x end))
       root = t[:root]
-      {ch,parent,root_box} = t[root]
+      {ch,_parent,root_box} = t[root]
       {_ch,_parent,leaf_box} = t[0]
       assert length(ch) == 1
       assert leaf_box == root_box
@@ -109,7 +104,6 @@ defmodule DrtreeTest do
 
     test "MerkleMap delete leaf keeps tree consistency" do
       Drtree.new(%{type: MerkleMap})
-      metadata = Drtree.metadata
       data = BoundingBoxGenerator.generate(100,1,[]) |> Enum.with_index |> Enum.map(fn {x,i} -> {i,x} end)
       {:ok,t} = Drtree.insert(data)
       delete_id = 90
@@ -132,7 +126,7 @@ defmodule DrtreeTest do
 
       {:ok,t} = Drtree.delete((1..100) |> Enum.map(fn x -> x end))
       root = t |> MerkleMap.get(:root)
-      {ch,parent,root_box} = t |> MerkleMap.get(root)
+      {ch,_parent,root_box} = t |> MerkleMap.get(root)
       {_ch,_parent,leaf_box} = t |> MerkleMap.get(0)
       assert length(ch) == 1
       assert leaf_box == root_box
@@ -144,7 +138,7 @@ defmodule DrtreeTest do
 
     test "Map queries return good stuff" do
         Drtree.new
-        {:ok,t} = Drtree.insert([{0,[{4,5},{6,7}]},{1,[{-34,-33},{40,41}]},{2,[{-50,-49},{15,16}]},{3,[{33,34},{-10,-9}]},{4,[{35,36},{-9,-8}]},{5,[{0,1},{-9,-8}]},{6,[{9,10},{9,10}]}])
+        Drtree.insert([{0,[{4,5},{6,7}]},{1,[{-34,-33},{40,41}]},{2,[{-50,-49},{15,16}]},{3,[{33,34},{-10,-9}]},{4,[{35,36},{-9,-8}]},{5,[{0,1},{-9,-8}]},{6,[{9,10},{9,10}]}])
 
         assert Drtree.query([{4,5},{6,7}]) == {:ok,[0]}
         assert Drtree.query([{2,5},{1,6.1}]) == {:ok,[0]}
@@ -170,7 +164,7 @@ defmodule DrtreeTest do
 
     test "MerkleMap queries return good stuff" do
       Drtree.new(%{type: MerkleMap})
-      {:ok,t} = Drtree.insert([{0,[{4,5},{6,7}]},{1,[{-34,-33},{40,41}]},{2,[{-50,-49},{15,16}]},{3,[{33,34},{-10,-9}]},{4,[{35,36},{-9,-8}]},{5,[{0,1},{-9,-8}]},{6,[{9,10},{9,10}]}])
+      Drtree.insert([{0,[{4,5},{6,7}]},{1,[{-34,-33},{40,41}]},{2,[{-50,-49},{15,16}]},{3,[{33,34},{-10,-9}]},{4,[{35,36},{-9,-8}]},{5,[{0,1},{-9,-8}]},{6,[{9,10},{9,10}]}])
 
       assert Drtree.query([{4,5},{6,7}]) == {:ok,[0]}
       assert Drtree.query([{2,5},{1,6.1}]) == {:ok,[0]}
@@ -197,9 +191,8 @@ defmodule DrtreeTest do
     test "Map update and bulk update works"do
 
       Drtree.new
-      metadata = Drtree.metadata
       {:ok,t} =  Drtree.update(0,[{13,14},{6,7}])
-      assert t = Drtree.tree
+      assert t == Drtree.tree
 
       {:ok,t} = Drtree.insert([{0,[{4,5},{6,7}]},{1,[{-34,-33},{40,41}]},{2,[{-50,-49},{15,16}]},{3,[{33,34},{-10,-9}]},{4,[{35,36},{-9,-8}]},{5,[{0,1},{-9,-8}]},{6,[{9,10},{9,10}]}])
 
@@ -214,12 +207,12 @@ defmodule DrtreeTest do
       assert p == (t[0] |> elem(1))
       assert (t[0] |> elem(2)) == [{13,14},{6,7}]
 
-      {:leaf,p,box} = t[0]
+      {:leaf,p,_box} = t[0]
       {:ok,t} = Drtree.update(5,[{-1,0},{-8,-7}])
       assert p == (t[0] |> elem(1))
       assert (t[5] |> elem(2)) == [{-1,0},{-8,-7}]
 
-      {:leaf,p,box} = t[0]
+      {:leaf,p,_box} = t[0]
       {:ok,t} = Drtree.update(0,[{-5,-4},{6,7}])
       refute p == (t[0] |> elem(1))
       assert (t[0] |> elem(2)) == [{-5,-4},{6,7}]
@@ -237,9 +230,8 @@ defmodule DrtreeTest do
     test "MerkleMap update and bulk update works"do
 
       Drtree.new(%{type: MerkleMap})
-      metadata = Drtree.metadata
-      {:ok,t} =  Drtree.update(0,[{13,14},{6,7}])
-      assert t = Drtree.tree
+      {:ok,t} = Drtree.update(0,[{13,14},{6,7}])
+      assert t == Drtree.tree
 
       {:ok,t} = Drtree.insert([{0,[{4,5},{6,7}]},{1,[{-34,-33},{40,41}]},{2,[{-50,-49},{15,16}]},{3,[{33,34},{-10,-9}]},{4,[{35,36},{-9,-8}]},{5,[{0,1},{-9,-8}]},{6,[{9,10},{9,10}]}])
 
@@ -254,12 +246,12 @@ defmodule DrtreeTest do
       assert p == (t |> MerkleMap.get(0) |> elem(1))
       assert (t |> MerkleMap.get(0) |> elem(2)) == [{13,14},{6,7}]
 
-      {:leaf,p,box} = t |> MerkleMap.get(0)
+      {:leaf,p,_box} = t |> MerkleMap.get(0)
       {:ok,t} = Drtree.update(5,[{-1,0},{-8,-7}])
       assert p == (t |> MerkleMap.get(0) |> elem(1))
       assert (t |> MerkleMap.get(5) |> elem(2)) == [{-1,0},{-8,-7}]
 
-      {:leaf,p,box} = t |> MerkleMap.get(0)
+      {:leaf,p,_box} = t |> MerkleMap.get(0)
       {:ok,t} = Drtree.update(0,[{-5,-4},{6,7}])
       refute p == (t |> MerkleMap.get(0) |> elem(1))
       assert (t |> MerkleMap.get(0) |> elem(2)) == [{-5,-4},{6,7}]
