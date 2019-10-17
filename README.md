@@ -1,19 +1,324 @@
 [![CircleCI](https://circleci.com/gh/windfish-studio/rtree/tree/master.svg?style=svg)](https://circleci.com/gh/windfish-studio/rtree/tree/master)
 ![LICENSE](https://img.shields.io/hexpm/l/dynamic_rtree)
 ![VERSION](https://img.shields.io/hexpm/v/dynamic_rtree)
-# DynamicRtree
+# Dynamic_Rtree
+This package is actually composed of 2 main modules:
+
+**DDRT**
+
+This is the top level module, which one you should include at your application supervision tree.
+
+
+**Drtree**
 
  This is the API module of the elixir r-tree implementation where you can do the basic actions.
 
-  ## Actions provided:
+
+# DDRT
+
+  If you want the distributed dynamic r-tree, start this process is a MUST.
   ```elixir
-      - insert/2
-      - query/2
-      - query/3
-      - delete/2
-      - update_leaf/3
-      - execute/1
+  DDRT.start_link(%{})
+  ```
+  or
+  ```elixir
+  children = [
+    ...
+    {DDRT, %{}}
+  ]
+  ```
+
+  Else, if you want just the dynamic r-tree this module is not a MUST, but you can use it anyways.
+
+  ## Configuration
+
+  Let's talk about which parameters you can pass to init the DDRT.
+
+   **name**: the name of the r-tree.
+
+   **mode**: the mode of the r-tree. 
+   
+   There are two:
+   ```elixir
+         :dynamic: all the r-trees with same name in different nodes will be sync.
+
+         :standalone: a dynamic r-tree that just will be at your node.
+   ```   
+  **width**: the max width (the number of childs) than can handle every node.
+
+  **type**: the type of data structure that maintains the r-tree. 
+  
+  There are two:
+  ```elixir
+         Map: faster way. Recommended if you don't need sync.
+
+         MerkleMap: a bit slower, but perfect to get minimum r-tree modifications.
+  ```
+         
+  **verbose**: allows `Logger` to report console logs. (Decrease performance)
+
+  **seed**: the start seed for the middle nodes uniq ID of the r-tree. Same seed will always reach same sequence of uniq ID's.
+
+  ## Distributed part
+
+  You have to config the Erlang node interconnection with `libcluster`.
+
+  The easy way is that:
+  
+   · At `config.exs` define the nodes you want to connect:
+```elixir
+ use Mix.Config
+ config :libcluster,
+ topologies: [
+  example: [
+    # The selected clustering strategy. Required.
+    strategy: Cluster.Strategy.Epmd,
+    # Configuration for the provided strategy. Optional.
+    config: [hosts: [:"a@localhost", :"b@localhost"]],
+  ]
+ ]
+```
+   · Then you should start you application for example like that:
+```elixir
+eduardo@elixir_rtree $ iex --name a -S mix
+iex(a@localhost)1>
+
+eduardo@elixir_rtree $ iex --name b -S mix
+iex(b@localhost)1>
+```
+
+  Finally, if you started in both nodes a `DDRT` with the same name you can simply use the `Drtree` API module and you will have the r-tree sync between nodes.
+
+`Note`: is important that you have the same configuration for the DDRT at the different nodes.
+
+# Drtree
+
+  This is the API module of the elixir r-tree implementation where you can do the basic actions.
+
+
+  ## Easy to use:
+
+   Starts a local r-tree named as Peter
+   ```elixir
+   iex> DDRT.start_link(%{name: Peter})
+   {:ok, #PID<0.214.0>}
    ```
+    
+   Insert "Griffin" on r-tree named as Peter
+   ```elixir
+   iex> Drtree.insert({"Griffin",[{4,5},{6,7}]},Peter)
+   {:ok,
+   %{
+    43143342109176739 => {["Griffin"], nil, [{4, 5}, {6, 7}]},
+    :root => 43143342109176739,
+    :ticket => [19125803434255161 | 82545666616502197],
+    "Griffin" => {:leaf, 43143342109176739, [{4, 5}, {6, 7}]}
+   }}
+   ```
+
+   Insert "Parker" on r-tree named as Peter
+   ```elixir
+   iex> Drtree.insert({"Parker",[{10,11},{16,17}]},Peter)
+   {:ok,
+   %{
+    43143342109176739 => {["Parker", "Griffin"], nil, [{4, 11}, {6, 17}]},
+    :root => 43143342109176739,
+    :ticket => [19125803434255161 | 82545666616502197],
+    "Griffin" => {:leaf, 43143342109176739, [{4, 5}, {6, 7}]},
+    "Parker" => {:leaf, 43143342109176739, [{10, 11}, {16, 17}]}
+   }}
+   ```
+
+   Query which leafs at Peter r-tree overlap with box `[{0,7},{4,8}]`
+   ```elixir
+   iex> Drtree.query([{0,7},{4,8}],Peter)
+   {:ok, ["Griffin"]}
+   ```
+    
+   Updates "Griffin" bounding box
+   ```elixir
+   iex> Drtree.update("Griffin",[{-6,-5},{11,12}],Peter)
+   {:ok,
+   %{
+    43143342109176739 => {["Parker", "Griffin"], nil, [{-6, 11}, {6, 17}]},
+    :root => 43143342109176739,
+    :ticket => [19125803434255161 | 82545666616502197],
+    "Griffin" => {:leaf, 43143342109176739, [{-6, -5}, {11, 12}]},
+    "Parker" => {:leaf, 43143342109176739, [{10, 11}, {16, 17}]}
+   }}
+   ```
+
+   Repeat again the last query
+   ```elixir
+   iex> Drtree.query([{0,7},{4,8}],Peter)
+   {:ok, []} # Peter "Griffin" left the query bounding box
+   ```
+    
+   Let's punish them
+   ```elixir
+   iex> Drtree.delete(["Griffin","Parker"],Peter)
+   {:ok,
+   %{
+    43143342109176739 => {[], nil, [{0, 0}, {0, 0}]},
+    :root => 43143342109176739,
+    :ticket => [19125803434255161 | 82545666616502197]
+   }}
+   ```
+
+  ## Easy concepts:
+
+   Bounding box format.
+
+   `[{x_min,x_max},{y_min,y_max}]`
+```elixir
+              Example:                               & & & & & y_max & & & & &
+                A unit at pos x: 10, y: -12 ,        &                       &
+                with x_size: 1 and y_size: 2         &                       &
+                would be represented with            &          pos          &
+                the following bounding box         x_min       (x,y)       x_max
+                [{9.5,10.5},{-13,-11}]               &                       &
+                                                     &                       &
+                                                     &                       &
+                                                     & & & & & y_min & & & & &
+```
+
+## Benchmarking
+
+```elixir
+Operating System: macOS
+CPU Information: Intel(R) Core(TM) i5-5257U CPU @ 2.70GHz
+Number of Available Cores: 4
+Available memory: 8 GB
+Elixir 1.9.0
+Erlang 22.0.7
+```
+
+### Delete
+```elixir
+Benchmark suite executing with the following configuration:
+warmup: 2 s
+time: 5 s
+memory time: 0 ns
+parallel: 1
+inputs: delete all leafs of tree [1000]
+Estimated total run time: 28 s
+
+##### With input delete all leafs of tree [1000] #####
+Name                       ips        average  deviation         median         99th %
+map bulk                175.20        5.71 ms     ±9.18%        5.60 ms        9.47 ms
+merklemap bulk           80.27       12.46 ms    ±21.27%       11.74 ms       25.37 ms
+map 1 by 1                4.68      213.68 ms     ±3.12%      213.24 ms      227.16 ms
+merklemap 1 by 1          1.55      643.75 ms    ±14.80%      616.84 ms      878.20 ms
+
+Comparison: 
+map bulk                175.20
+merklemap bulk           80.27 - 2.18x slower +6.75 ms
+map 1 by 1                4.68 - 37.44x slower +207.97 ms
+merklemap 1 by 1          1.55 - 112.79x slower +638.04 ms
+```
+
+### Update
+```elixir
+Benchmark suite executing with the following configuration:
+warmup: 2 s
+time: 10 s
+memory time: 0 ns
+parallel: 1
+inputs: all leafs of tree [1000], all leafs of tree [100000]
+Estimated total run time: 48 s
+
+##### With input all leafs of tree [1000] #####
+Name                ips        average  deviation         median         99th %
+map              133.88        7.47 ms    ±22.82%        6.92 ms       14.83 ms
+merklemap         65.74       15.21 ms    ±21.93%       14.18 ms       26.42 ms
+
+Comparison: 
+map              133.88
+merklemap         65.74 - 2.04x slower +7.74 ms
+
+##### With input all leafs of tree [100000] #####
+Name                ips        average  deviation         median         99th %
+map                0.68         1.46 s    ±15.84%         1.47 s         1.82 s
+merklemap          0.33         3.01 s     ±8.23%         3.09 s         3.21 s
+
+Comparison: 
+map                0.68
+merklemap          0.33 - 2.06x slower +1.55 s
+```
+
+### Query
+```elixir
+Benchmark suite executing with the following configuration:
+warmup: 2 s
+time: 5 s
+memory time: 0 ns
+parallel: 1
+inputs: 100x100 box query, 10x10 box query, 1x1 box query, world box query
+Estimated total run time: 56 s
+
+##### With input 100x100 box query #####
+Name                ips        average  deviation         median         99th %
+merklemap        299.97        3.33 ms    ±28.87%        3.03 ms        6.92 ms
+map              268.51        3.72 ms    ±36.46%        3.35 ms        8.57 ms
+
+Comparison: 
+merklemap        299.97
+map              268.51 - 1.12x slower +0.39 ms
+
+##### With input 10x10 box query #####
+Name                ips        average  deviation         median         99th %
+map              1.50 K      667.16 μs    ±37.04%         594 μs     1557.56 μs
+merklemap        1.01 K      992.92 μs    ±48.86%         883 μs     2418.52 μs
+
+Comparison: 
+map              1.50 K
+merklemap        1.01 K - 1.49x slower +325.76 μs
+
+##### With input 1x1 box query #####
+Name                ips        average  deviation         median         99th %
+map              2.01 K      498.54 μs    ±39.28%         430 μs        1257 μs
+merklemap        1.51 K      660.89 μs    ±45.08%         603 μs     1551.25 μs
+
+Comparison: 
+map              2.01 K
+merklemap        1.51 K - 1.33x slower +162.34 μs
+
+##### With input world box query #####
+Name                ips        average  deviation         median         99th %
+map              156.18        6.40 ms    ±18.51%        5.99 ms       10.70 ms
+merklemap        152.11        6.57 ms    ±26.12%        5.92 ms       13.93 ms
+
+Comparison: 
+map              156.18
+merklemap        152.11 - 1.03x slower +0.171 ms
+
+```
+
+### Insert
+```elixir
+Benchmark suite executing with the following configuration:
+warmup: 2 s
+time: 5 s
+memory time: 0 ns
+parallel: 1
+inputs: 1000 leafs
+Estimated total run time: 28 s
+
+##### With input 1000 leafs #####
+Name                       ips        average  deviation         median         99th %
+map bulk                305.53        3.27 ms    ±39.39%        2.79 ms        7.96 ms
+merklemap bulk          190.61        5.25 ms    ±62.06%        4.37 ms       17.65 ms
+map 1 by 1               66.73       14.99 ms     ±4.63%       14.78 ms       19.11 ms
+merklemap 1 by 1         23.00       43.48 ms    ±23.79%       39.24 ms       81.16 ms
+
+Comparison: 
+map bulk                305.53
+merklemap bulk          190.61 - 1.60x slower +1.97 ms
+map 1 by 1               66.73 - 4.58x slower +11.71 ms
+merklemap 1 by 1         23.00 - 13.28x slower +40.21 ms
+
+```
+
 
 ## Installation
 
@@ -23,209 +328,12 @@ by adding `dynamic_rtree` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:dynamic_rtree, "~> 0.1.0"}
+    {:dynamic_rtree, "~> 0.2.0"}
   ]
 end
 ```
 ## Usage
 
-Everything is well defined and pretty at [documentation](https://hexdocs.pm/dynamic_rtree/0.1.0/Drtree.html).
+Everything is well defined and pretty at [documentation](https://hexdocs.pm/dynamic_rtree/0.2.0/).
 
-You can also find the hex package [here](https://hex.pm/packages/dynamic_rtree/0.1.0).
-
-## Benchmarking
-
-### Delete
-```elixir
-Operating System: macOS
-CPU Information: Intel(R) Core(TM) i5-5257U CPU @ 2.70GHz
-Number of Available Cores: 4
-Available memory: 8 GB
-Elixir 1.9.0
-Erlang 22.0.7
-
-Benchmark suite executing with the following configuration:
-warmup: 2 s
-time: 5 s
-memory time: 0 ns
-parallel: 1
-inputs: tree [1000], tree [10000], tree [100000]
-Estimated total run time: 21 s
-
-Benchmarking delete [random leaf] with input tree [1000]...
-Benchmarking delete [random leaf] with input tree [10000]...
-Benchmarking delete [random leaf] with input tree [100000]...
-
-##### With input tree [1000] #####
-Name                           ips        average  deviation         median         99th %
-delete [random leaf]      102.55 K        9.75 μs    ±65.82%           9 μs       60.94 μs
-
-##### With input tree [10000] #####
-Name                           ips        average  deviation         median         99th %
-delete [random leaf]       33.06 K       30.25 μs     ±3.91%          30 μs          32 μs
-
-##### With input tree [100000] #####
-Name                           ips        average  deviation         median         99th %
-delete [random leaf]          40 K          25 μs    ±22.63%          25 μs          29 μs
-```
-
-### Update
-```elixir
-Operating System: macOS
-CPU Information: Intel(R) Core(TM) i5-5257U CPU @ 2.70GHz
-Number of Available Cores: 4
-Available memory: 8 GB
-Elixir 1.9.0
-Erlang 22.0.7
-
-Benchmark suite executing with the following configuration:
-warmup: 2 s
-time: 10 s
-memory time: 0 ns
-parallel: 1
-inputs: tree [1000], tree [10000], tree [100000]
-Estimated total run time: 36 s
-
-Benchmarking continuous update with input tree [1000]...
-Benchmarking continuous update with input tree [10000]...
-Benchmarking continuous update with input tree [100000]...
-
-##### With input tree [1000] #####
-Name                        ips        average  deviation         median         99th %
-continuous update        115.17        8.68 ms    ±40.88%        7.45 ms       25.37 ms
-
-##### With input tree [10000] #####
-Name                        ips        average  deviation         median         99th %
-continuous update         12.70       78.74 ms     ±7.45%       76.99 ms       91.57 ms
-
-##### With input tree [100000] #####
-Name                        ips        average  deviation         median         99th %
-continuous update          0.93         1.08 s     ±7.94%         1.05 s         1.24 s
-```
-### Query
-```elixir
-Operating System: macOS
-CPU Information: Intel(R) Core(TM) i5-5257U CPU @ 2.70GHz
-Number of Available Cores: 4
-Available memory: 8 GB
-Elixir 1.9.0
-Erlang 22.0.7
-
-Benchmark suite executing with the following configuration:
-warmup: 2 s
-time: 5 s
-memory time: 0 ns
-parallel: 1
-inputs: 100x100 box query, 10x10 box query, 1x1 box query, world box query
-Estimated total run time: 1.40 min
-
-Benchmarking tree [1000 leafs] with input 100x100 box query...
-Benchmarking tree [1000 leafs] with input 10x10 box query...
-Benchmarking tree [1000 leafs] with input 1x1 box query...
-Benchmarking tree [1000 leafs] with input world box query...
-Benchmarking tree [10000 leafs] with input 100x100 box query...
-Benchmarking tree [10000 leafs] with input 10x10 box query...
-Benchmarking tree [10000 leafs] with input 1x1 box query...
-Benchmarking tree [10000 leafs] with input world box query...
-Benchmarking tree [100000 leafs] with input 100x100 box query...
-Benchmarking tree [100000 leafs] with input 10x10 box query...
-Benchmarking tree [100000 leafs] with input 1x1 box query...
-Benchmarking tree [100000 leafs] with input world box query...
-
-##### With input 100x100 box query #####
-Name                          ips        average  deviation         median         99th %
-tree [1000 leafs]         2786.01        0.36 ms    ±42.21%        0.31 ms        0.98 ms
-tree [10000 leafs]         263.88        3.79 ms    ±71.01%        3.12 ms       14.39 ms
-tree [100000 leafs]         27.65       36.16 ms    ±31.55%       31.64 ms      100.82 ms
-
-Comparison: 
-tree [1000 leafs]         2786.01
-tree [10000 leafs]         263.88 - 10.56x slower +3.43 ms
-tree [100000 leafs]         27.65 - 100.75x slower +35.80 ms
-
-##### With input 10x10 box query #####
-Name                          ips        average  deviation         median         99th %
-tree [1000 leafs]          7.56 K      132.32 μs   ±268.69%         107 μs      367.48 μs
-tree [10000 leafs]         1.52 K      658.95 μs   ±175.00%         500 μs     2302.66 μs
-tree [100000 leafs]        0.27 K     3728.35 μs    ±24.95%        3482 μs     6102.92 μs
-
-Comparison: 
-tree [1000 leafs]          7.56 K
-tree [10000 leafs]         1.52 K - 4.98x slower +526.63 μs
-tree [100000 leafs]        0.27 K - 28.18x slower +3596.03 μs
-
-##### With input 1x1 box query #####
-Name                          ips        average  deviation         median         99th %
-tree [1000 leafs]         11.80 K       84.77 μs   ±208.07%          67 μs         311 μs
-tree [10000 leafs]         2.49 K      401.61 μs   ±138.07%         289 μs     1539.88 μs
-tree [100000 leafs]        0.81 K     1237.44 μs    ±66.31%        1051 μs     3267.45 μs
-
-Comparison: 
-tree [1000 leafs]         11.80 K
-tree [10000 leafs]         2.49 K - 4.74x slower +316.84 μs
-tree [100000 leafs]        0.81 K - 14.60x slower +1152.67 μs
-
-##### With input world box query #####
-Name                          ips        average  deviation         median         99th %
-tree [1000 leafs]         3048.78        0.33 ms    ±41.19%        0.29 ms        0.81 ms
-tree [10000 leafs]         323.73        3.09 ms    ±14.12%        2.94 ms        4.90 ms
-tree [100000 leafs]         15.93       62.79 ms     ±7.50%       62.05 ms       93.63 ms
-
-Comparison: 
-tree [1000 leafs]         3048.78
-tree [10000 leafs]         323.73 - 9.42x slower +2.76 ms
-tree [100000 leafs]         15.93 - 191.43x slower +62.46 ms
-
-```
-
-### Insert
-```elixir
-Operating System: macOS
-CPU Information: Intel(R) Core(TM) i5-5257U CPU @ 2.70GHz
-Number of Available Cores: 4
-Available memory: 8 GB
-Elixir 1.9.0
-Erlang 22.0.7
-
-Benchmark suite executing with the following configuration:
-warmup: 2 s
-time: 5 s
-memory time: 0 ns
-parallel: 1
-inputs: 1000 leafs, 10000 leafs, 100000 leafs
-Estimated total run time: 42 s
-
-Benchmarking tree [100000] with input 1000 leafs...
-Benchmarking tree [100000] with input 10000 leafs...
-Benchmarking tree [100000] with input 100000 leafs...
-Benchmarking tree [empty] with input 1000 leafs...
-Benchmarking tree [empty] with input 10000 leafs...
-Benchmarking tree [empty] with input 100000 leafs...
-
-##### With input 1000 leafs #####
-Name                    ips        average  deviation         median         99th %
-tree [empty]          33.16       30.16 ms    ±57.33%       27.06 ms      175.02 ms
-tree [100000]          8.15      122.63 ms     ±0.00%      122.63 ms      122.63 ms
-
-Comparison: 
-tree [empty]          33.16
-tree [100000]          8.15 - 4.07x slower +92.47 ms
-
-##### With input 10000 leafs #####
-Name                    ips        average  deviation         median         99th %
-tree [empty]           2.44      410.03 ms    ±28.11%      363.34 ms      737.25 ms
-tree [100000]          2.27      441.37 ms     ±0.00%      441.37 ms      441.37 ms
-
-Comparison: 
-tree [empty]           2.44
-tree [100000]          2.27 - 1.08x slower +31.34 ms
-
-##### With input 100000 leafs #####
-Name                    ips        average  deviation         median         99th %
-tree [empty]           0.22         4.56 s     ±7.30%         4.56 s         4.80 s
-tree [100000]         0.158         6.35 s     ±0.00%         6.35 s         6.35 s
-
-Comparison: 
-tree [empty]           0.22
-tree [100000]         0.158 - 1.39x slower +1.78 s
-```
+You can also find the hex package [here](https://hex.pm/packages/dynamic_rtree/0.2.0).
