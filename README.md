@@ -1,4 +1,4 @@
-[![CircleCI](https://circleci.com/gh/windfish-studio/dynamic-rtree/tree/master.svg?style=svg)](https://circleci.com/gh/windfish-studio/dynamic-rtree/tree/master)
+[![CircleCI](https://circleci.com/gh/windfish-studio/rtree/tree/master.svg?style=svg)](https://circleci.com/gh/windfish-studio/rtree/tree/master)
 ![LICENSE](https://img.shields.io/hexpm/l/dynamic_rtree)
 ![VERSION](https://img.shields.io/hexpm/v/dynamic_rtree)
 # DynamicRtree
