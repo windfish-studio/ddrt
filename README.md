@@ -65,7 +65,7 @@ This is the top level module, which one you should include at your application s
 
   The easy way is that:
   
-   · At `config.exs` define the nodes you want to connect:
+   At `config.exs` define the nodes you want to connect:
 ```elixir
  use Mix.Config
  config :libcluster,
@@ -78,12 +78,12 @@ This is the top level module, which one you should include at your application s
   ]
  ]
 ```
-   · Then you should start you application for example like that:
+   Then you should start you application for example like that:
 ```elixir
-eduardo@elixir_rtree $ iex --name a -S mix
+eduardo@elixir_rtree $ iex --name a@localhost -S mix
 iex(a@localhost)1>
 
-eduardo@elixir_rtree $ iex --name b -S mix
+eduardo@elixir_rtree $ iex --name b@localhost -S mix
 iex(b@localhost)1>
 ```
 
