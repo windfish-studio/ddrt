@@ -4,7 +4,7 @@ defmodule DynamicRtree.MixProject do
   def project do
     [
       app: :dynamic_rtree,
-      version: "0.1.0",
+      version: "0.2.0",
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -18,7 +18,6 @@ defmodule DynamicRtree.MixProject do
   def application do
     [
       extra_applications: [:logger],
-      mod: {Drtree.Application,[]}
     ]
   end
 
@@ -26,7 +25,6 @@ defmodule DynamicRtree.MixProject do
   defp deps do
     [
       { :uuid , "~> 1.1"},
-      { :dlex , git: "https://github.com/windfish-studio/dlex", branch: "master", only: :dev},
       { :jason , "~> 1.0"},
       { :benchee, "~> 1.0", only: :dev},
       { :earmark, "~> 1.2", only: :dev},
@@ -36,8 +34,6 @@ defmodule DynamicRtree.MixProject do
       { :libcluster, "~> 3.1.1"},
       { :delta_crdt, "~> 0.5.0"}
 
-      # {:dep_from_hexpm, "~> 0.3.0"},
-      # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
     ]
   end
 
@@ -49,7 +45,14 @@ defmodule DynamicRtree.MixProject do
   end
 
   def description do
-    "Dynamic R-tree implementation for Elixir. Why dynamic? Because it's optimized to do fast updates at the tree leafs spatial index."
+    "Distributed Dynamic R-tree (DDRT) implementation for Elixir.
+
+    It's mainly a R-tree.
+
+    Why dynamic? Because it's optimized to do fast updates at the tree leafs spatial index.
+
+    Why distributed? Well.. you can run the DDRT on different nodes and they will have the same r-tree data.
+    "
   end
 
 end

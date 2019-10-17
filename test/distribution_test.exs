@@ -4,14 +4,14 @@ defmodule DrtreeTest.Distribution do
   setup_all do
     children = [
       {Cluster.Supervisor, [Application.get_env(:libcluster,:topologies), [name: A.ClusterSupervisor]]},
-      {DeltaCrdt, [crdt: DeltaCrdt.AWLWWMap, name: CrdtA, on_diffs: &Drtree.Application.on_diffs(&1,Drtree,A)]},
+      {DeltaCrdt, [crdt: DeltaCrdt.AWLWWMap, name: CrdtA, on_diffs: &DDRT.on_diffs(&1,Drtree,A)]},
       {Drtree, [conf: %{mode: :distributed}, name: A, crdt: CrdtA]}
     ]
     Supervisor.start_link(children, strategy: :one_for_one, name: A.Supervisor)
 
     children = [
       {Cluster.Supervisor, [Application.get_env(:libcluster,:topologies), [name: B.ClusterSupervisor]]},
-      {DeltaCrdt, [crdt: DeltaCrdt.AWLWWMap, name: CrdtB, on_diffs: &Drtree.Application.on_diffs(&1,Drtree,B)]},
+      {DeltaCrdt, [crdt: DeltaCrdt.AWLWWMap, name: CrdtB, on_diffs: &DDRT.on_diffs(&1,Drtree,B)]},
       {Drtree, [conf: %{mode: :distributed}, name: B, crdt: CrdtB]}
     ]
     Supervisor.start_link(children, strategy: :one_for_one, name: B.Supervisor)

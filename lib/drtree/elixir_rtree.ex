@@ -388,7 +388,7 @@ defmodule ElixirRtree do
     rbundle.tree
     |> rbundle[:type].get(parent)
     |> Utils.tuple_value(:childs)
-    |> (fn c -> c -- [node] end).()
+    |> (fn c -> if c, do: c -- [node], else: [] end).()
     |> Enum.map(fn b ->
       tuple = rbundle.tree |> rbundle[:type].get(b)
       {b,tuple |> Utils.tuple_value(:childs),tuple |> Utils.tuple_value(:bbox)} end)

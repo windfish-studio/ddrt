@@ -1,7 +1,7 @@
 alias ElixirRtree.Utils
 import IO.ANSI
 
-Drtree.start_link(%{})
+Drtree.start_link([conf: %{}])
 Logger.configure([level: :info])
 
 generate = fn n,s ->
@@ -20,7 +20,7 @@ end
 Benchee.run(%{
   "map" =>
     {fn ml ->
-        Drtree.update(ml)
+        Drtree.updates(ml)
     end,
     before_each: fn _i -> [{_atom,ml}] = :ets.lookup(:move_list,:move)
                           ml
@@ -37,12 +37,12 @@ Benchee.run(%{
     end},
   "merklemap" =>
     {fn ml ->
-        Drtree.update(ml)
+        Drtree.updates(ml)
     end,
     before_each: fn _i -> [{_atom,ml}] = :ets.lookup(:move_list,:move)
                           ml
     end,
-    after_each: fn t ->   [{_atom,ml}] = :ets.lookup(:move_list,:move)
+    after_each: fn _t ->   [{_atom,ml}] = :ets.lookup(:move_list,:move)
                           new_ml = ml |> Enum.map(fn {id,{_ob,nb}} -> {id,{nb,Utils.box_move(nb,unit_move.())}} end)
                           :ets.insert(:move_list,{:move,new_ml})
     end,

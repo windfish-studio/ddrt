@@ -1,6 +1,6 @@
 import IO.ANSI
 
-Drtree.start_link(%{})
+Drtree.start_link([conf: %{}])
 generate = fn n,s ->
   BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {UUID.uuid1(),x} end)
 end

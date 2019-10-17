@@ -1,6 +1,6 @@
 import IO.ANSI
 
-Drtree.start_link(%{})
+Drtree.start_link([conf: %{}])
 Logger.configure([level: :info])
 
 generate = fn n,s ->

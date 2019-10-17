@@ -3,7 +3,7 @@ defmodule DrtreeTest do
   alias ElixirRtree.Utils
 
   setup_all do
-    Drtree.start_link(%{})
+    Drtree.start_link([conf: %{}])
     {:ok, %{}}
   end
 
