@@ -57,10 +57,10 @@ defmodule DDRT do
 
     - Then you should start you application for example like that:
 
-            eduardo@elixir_rtree $ iex --name a -S mix
+            eduardo@elixir_rtree $ iex --name a@localhost -S mix
             iex(a@localhost)1>
 
-            eduardo@elixir_rtree $ iex --name b -S mix
+            eduardo@elixir_rtree $ iex --name b@localhost -S mix
             iex(b@localhost)1>
 
   Finally, if you started in both nodes a `DDRT` with the same name you can simply use the `Drtree` API module and you will have the r-tree sync between nodes.
