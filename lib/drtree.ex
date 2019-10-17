@@ -117,7 +117,7 @@ defmodule Drtree do
     seed: 0
   }
 
-  @spec new(%{},atom())::{:ok,map()}
+  @spec new(map(),atom())::{:ok,map()}
   @doc false
   def new(opts \\ @defopts,name \\ __MODULE__)when is_map(opts)do
     GenServer.call(name,{:new,opts})
@@ -322,7 +322,7 @@ defmodule Drtree do
 
   """
   def tree(name \\ __MODULE__)
-  @spec metadata(atom())::map()
+  @spec tree(atom())::map()
   def tree(name)do
     GenServer.call(name,:tree)
   end
