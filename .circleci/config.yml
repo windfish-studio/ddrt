@@ -49,3 +49,4 @@ jobs:
             - ~/.mix
       - run: MIX_ENV=dev mix dialyzer --halt-exit-status
       - run: mix test
+      - run: mix format --check-formatted

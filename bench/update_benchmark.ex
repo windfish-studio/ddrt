@@ -1,7 +1,10 @@
-alias ElixirRtree.Utils
+alias DDRT.DynamicRtreeImpl.Utils
+alias DDRT.DynamicRtree
+alias DDRT.DynamicRtreeImpl.BoundingBoxGenerator
+
 import IO.ANSI
 
-Drtree.start_link([conf: %{}])
+DynamicRtree.start_link([conf: %{}])
 Logger.configure([level: :info])
 
 generate = fn n,s ->
@@ -9,8 +12,8 @@ generate = fn n,s ->
 end
 
 new_tree = fn leafs,typ ->
-  Drtree.new(%{type: typ})
-  Drtree.insert(leafs)
+  DynamicRtree.new(%{type: typ})
+  DynamicRtree.insert(leafs)
 end
 
 unit_move = fn ->
@@ -20,7 +23,7 @@ end
 Benchee.run(%{
   "map" =>
     {fn ml ->
-        Drtree.updates(ml)
+        DynamicRtree.bulk_update(ml)
     end,
     before_each: fn _i -> [{_atom,ml}] = :ets.lookup(:move_list,:move)
                           ml
@@ -37,7 +40,7 @@ Benchee.run(%{
     end},
   "merklemap" =>
     {fn ml ->
-        Drtree.updates(ml)
+        DynamicRtree.bulk_update(ml)
     end,
     before_each: fn _i -> [{_atom,ml}] = :ets.lookup(:move_list,:move)
                           ml

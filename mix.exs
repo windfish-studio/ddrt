@@ -17,23 +17,22 @@ defmodule DynamicRtree.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger],
+      extra_applications: [:logger]
     ]
   end
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      { :uuid , "~> 1.1"},
-      { :jason , "~> 1.0"},
-      { :benchee, "~> 1.0", only: :dev},
-      { :earmark, "~> 1.2", only: :dev},
-      { :ex_doc, "~> 0.19", only: :dev},
-      { :dialyxir, "~> 0.4", only: :dev},
-      { :merkle_map, "~> 0.2.0"},
-      { :libcluster, "~> 3.1.1"},
-      { :delta_crdt, "~> 0.5.0"}
-
+      {:uuid, "~> 1.1"},
+      {:jason, "~> 1.0"},
+      {:benchee, "~> 1.0", only: :dev},
+      {:earmark, "~> 1.2", only: :dev},
+      {:ex_doc, "~> 0.19", only: :dev},
+      {:dialyxir, "~> 0.4", only: :dev},
+      {:merkle_map, "~> 0.2.0"},
+      {:libcluster, "~> 3.1.1"},
+      {:delta_crdt, "~> 0.5.0"}
     ]
   end
 
@@ -54,5 +53,4 @@ defmodule DynamicRtree.MixProject do
     Why distributed? Well.. you can run the DDRT on different nodes and they will have the same r-tree data.
     "
   end
-
 end

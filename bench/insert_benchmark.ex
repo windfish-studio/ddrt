@@ -1,28 +1,32 @@
 import IO.ANSI
 
-Drtree.start_link([conf: %{}])
+alias DDRT.DynamicRtreeImpl.Utils
+alias DDRT.DynamicRtree
+alias DDRT.DynamicRtreeImpl.BoundingBoxGenerator
+
+DynamicRtree.start_link([conf: %{}])
 
 generate = fn n,s ->
   BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {:os.system_time(:nanosecond),x} end)
 end
 
 new_tree = fn leafs,typ ->
-  Drtree.new(%{type: typ})
+  DynamicRtree.new(%{type: typ})
   generate.(leafs,1)
   |> Enum.each(fn l ->
-    Drtree.insert(l)
+    DynamicRtree.insert(l)
   end)
 end
 
 insert = fn data ->
   data
   |> Enum.each(fn l ->
-    Drtree.insert(l)
+    DynamicRtree.insert(l)
   end)
 end
 
 bulk_insert = fn data ->
-  Drtree.insert(data)
+  DynamicRtree.insert(data)
 end
 
 Benchee.run(%{

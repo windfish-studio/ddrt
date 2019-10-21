@@ -1,71 +1,77 @@
 [![CircleCI](https://circleci.com/gh/windfish-studio/rtree/tree/master.svg?style=svg)](https://circleci.com/gh/windfish-studio/rtree/tree/master)
-![LICENSE](https://img.shields.io/hexpm/l/dynamic_rtree)
-![VERSION](https://img.shields.io/hexpm/v/dynamic_rtree)
-# Dynamic_Rtree
-This package is actually composed of 2 main modules:
+[![LICENSE](https://img.shields.io/hexpm/l/dynamic_rtree)](https://rawcdn.githack.com/windfish-studio/rtree/1479e8660336fb0a63fc6a39185c10e1ab940d7b/LICENSE)
+[![VERSION](https://img.shields.io/hexpm/v/dynamic_rtree)](https://hexdocs.pm/dynamic_rtree/api-reference.html)
 
-**DDRT**
+# :dynamic_rtree
+A __D__ynamic, __D__istributed [__R__-__T__ree](https://en.wikipedia.org/wiki/R-tree) (DDRT) library written in Elixir. The 'dynamic' part of the title refers to the fact that this implementation is optimized for a high volume of update operations. Put another way, this is an R-tree best suited for use with spatial data _in constant movement_. The 'distributed' part refers to the fact that this library is designed to maintain a spatial index (rtree) across a cluster of distributed elixir nodes. 
 
-This is the top level module, which one you should include at your application supervision tree.
-
-
-**Drtree**
-
- This is the API module of the elixir r-tree implementation where you can do the basic actions.
-
+The library uses [@derekkraan](https://github.com/derekkraan)'s [MerkleMap](https://github.com/derekkraan/merkle_map) and [CRDT](https://github.com/derekkraan/delta_crdt_ex) implementations to ensure reliable, "eventually consistent" distributed behavior.
 
 # DDRT
 
-  If you want the distributed dynamic r-tree, start this process is a MUST.
-  ```elixir
-  DDRT.start_link(%{})
-  ```
-  or
-  ```elixir
-  children = [
-    ...
-    {DDRT, %{}}
-  ]
-  ```
+If you want the distributed dynamic r-tree, start this process is a MUST.
 
-  Else, if you want just the dynamic r-tree this module is not a MUST, but you can use it anyways.
+```elixir
+DDRT.start_link([
+  name: DynamicRtree
+  width: 6,
+  type: Map,
+  verbose: false,
+  seed: 0
+])
+```
 
-  ## Configuration
+or
 
-  Let's talk about which parameters you can pass to init the DDRT.
+```elixir
+children = [
+  ...
+  {DDRT, %{}}
+]
+```
 
-   **name**: the name of the r-tree.
+Else, if you want just the dynamic r-tree this module is not a MUST, but you can use it anyways.
 
-   **mode**: the mode of the r-tree. 
+## Configuration
+
+Let's talk about which parameters you can pass to init the DDRT.
+
+**name**: the name of the r-tree.
+
+**mode**: the mode of the r-tree. 
+
+There are two:
    
-   There are two:
-   ```elixir
-         :dynamic: all the r-trees with same name in different nodes will be sync.
+```elixir
+:dynamic: all the r-trees with same name in different nodes will be sync.
 
-         :standalone: a dynamic r-tree that just will be at your node.
-   ```   
-  **width**: the max width (the number of childs) than can handle every node.
-
-  **type**: the type of data structure that maintains the r-tree. 
+:standalone: a dynamic r-tree that just will be at your node.
+```   
   
-  There are two:
-  ```elixir
-         Map: faster way. Recommended if you don't need sync.
+**width**: the max width (the number of childs) than can handle every node.
 
-         MerkleMap: a bit slower, but perfect to get minimum r-tree modifications.
-  ```
-         
-  **verbose**: allows `Logger` to report console logs. (Decrease performance)
+**type**: the type of data structure that maintains the r-tree. 
 
-  **seed**: the start seed for the middle nodes uniq ID of the r-tree. Same seed will always reach same sequence of uniq ID's.
+There are two:
 
-  ## Distributed part
+```elixir
+Map: faster way. Recommended if you don't need sync.
 
-  You have to config the Erlang node interconnection with `libcluster`.
+MerkleMap: a bit slower, but perfect to get minimum r-tree modifications.
+```
 
-  The easy way is that:
-  
-   At `config.exs` define the nodes you want to connect:
+**verbose**: allows `Logger` to report console logs. (Decrease performance)
+
+**seed**: the start seed for the middle nodes uniq ID of the r-tree. Same seed will always reach same sequence of uniq ID's.
+
+## Distributed part
+
+You have to config the Erlang node interconnection with `libcluster`.
+
+The easy way is that:
+
+At `config.exs` define the nodes you want to connect:
+
 ```elixir
  use Mix.Config
  config :libcluster,
@@ -78,7 +84,9 @@ This is the top level module, which one you should include at your application s
   ]
  ]
 ```
-   Then you should start you application for example like that:
+
+Then you should start you application for example like that:
+
 ```elixir
 eduardo@elixir_rtree $ iex --name a@localhost -S mix
 iex(a@localhost)1>
@@ -87,99 +95,105 @@ eduardo@elixir_rtree $ iex --name b@localhost -S mix
 iex(b@localhost)1>
 ```
 
-  Finally, if you started in both nodes a `DDRT` with the same name you can simply use the `Drtree` API module and you will have the r-tree sync between nodes.
+Finally, if you started in both nodes a `DDRT` with the same name you can simply use the `DynamicRtree` API module and you will have the r-tree sync between nodes.
 
 `Note`: is important that you have the same configuration for the DDRT at the different nodes.
 
-# Drtree
+# DynamicRtree
 
-  This is the API module of the elixir r-tree implementation where you can do the basic actions.
+This is the API module of the elixir r-tree implementation where you can do the basic actions.
 
 
-  ## Easy to use:
+## Easy to use:
 
-   Starts a local r-tree named as Peter
-   ```elixir
-   iex> DDRT.start_link(%{name: Peter})
-   {:ok, #PID<0.214.0>}
-   ```
-    
-   Insert "Griffin" on r-tree named as Peter
-   ```elixir
-   iex> Drtree.insert({"Griffin",[{4,5},{6,7}]},Peter)
-   {:ok,
-   %{
+Starts a local r-tree named as Peter
+```elixir
+iex> DDRT.start_link(%{name: Peter})
+{:ok, #PID<0.214.0>}
+```
+  
+Insert "Griffin" on r-tree named as Peter
+```elixir
+iex> DynamicRtree.insert({"Griffin",[{4,5},{6,7}]},Peter)
+{:ok,
+  %{
     43143342109176739 => {["Griffin"], nil, [{4, 5}, {6, 7}]},
     :root => 43143342109176739,
     :ticket => [19125803434255161 | 82545666616502197],
     "Griffin" => {:leaf, 43143342109176739, [{4, 5}, {6, 7}]}
-   }}
-   ```
+}}
+```
 
-   Insert "Parker" on r-tree named as Peter
-   ```elixir
-   iex> Drtree.insert({"Parker",[{10,11},{16,17}]},Peter)
-   {:ok,
-   %{
+Insert "Parker" on r-tree named as Peter
+
+```elixir
+iex> DynamicRtree.insert({"Parker",[{10,11},{16,17}]},Peter)
+{:ok,
+  %{
     43143342109176739 => {["Parker", "Griffin"], nil, [{4, 11}, {6, 17}]},
     :root => 43143342109176739,
     :ticket => [19125803434255161 | 82545666616502197],
     "Griffin" => {:leaf, 43143342109176739, [{4, 5}, {6, 7}]},
     "Parker" => {:leaf, 43143342109176739, [{10, 11}, {16, 17}]}
-   }}
-   ```
+}}
+```
 
-   Query which leafs at Peter r-tree overlap with box `[{0,7},{4,8}]`
-   ```elixir
-   iex> Drtree.query([{0,7},{4,8}],Peter)
-   {:ok, ["Griffin"]}
-   ```
-    
-   Updates "Griffin" bounding box
-   ```elixir
-   iex> Drtree.update("Griffin",[{-6,-5},{11,12}],Peter)
-   {:ok,
-   %{
+Query which leafs at Peter r-tree overlap with box `[{0,7},{4,8}]`
+
+```elixir
+iex> DynamicRtree.query([{0,7},{4,8}],Peter)
+{:ok, ["Griffin"]}
+```
+ 
+Updates "Griffin" bounding box
+
+```elixir
+iex> DynamicRtree.update("Griffin",[{-6,-5},{11,12}],Peter)
+{:ok,
+  %{
     43143342109176739 => {["Parker", "Griffin"], nil, [{-6, 11}, {6, 17}]},
     :root => 43143342109176739,
     :ticket => [19125803434255161 | 82545666616502197],
     "Griffin" => {:leaf, 43143342109176739, [{-6, -5}, {11, 12}]},
     "Parker" => {:leaf, 43143342109176739, [{10, 11}, {16, 17}]}
-   }}
-   ```
+}}
+```
 
-   Repeat again the last query
-   ```elixir
-   iex> Drtree.query([{0,7},{4,8}],Peter)
-   {:ok, []} # Peter "Griffin" left the query bounding box
-   ```
-    
-   Let's punish them
-   ```elixir
-   iex> Drtree.delete(["Griffin","Parker"],Peter)
-   {:ok,
-   %{
+Repeat again the last query
+
+```elixir
+ iex> DynamicRtree.query([{0,7},{4,8}],Peter)
+ {:ok, []} # Peter "Griffin" left the query bounding box
+```
+  
+Let's punish them
+
+```elixir
+iex> DynamicRtree.delete(["Griffin","Parker"],Peter)
+{:ok,
+  %{
     43143342109176739 => {[], nil, [{0, 0}, {0, 0}]},
     :root => 43143342109176739,
     :ticket => [19125803434255161 | 82545666616502197]
-   }}
-   ```
+}}
+```
 
-  ## Easy concepts:
+## Easy concepts:
 
-   Bounding box format.
+Bounding box format.
 
-   `[{x_min,x_max},{y_min,y_max}]`
+`[{x_min,x_max},{y_min,y_max}]`
+
 ```elixir
-              Example:                               & & & & & y_max & & & & &
-                A unit at pos x: 10, y: -12 ,        &                       &
-                with x_size: 1 and y_size: 2         &                       &
-                would be represented with            &          pos          &
-                the following bounding box         x_min       (x,y)       x_max
-                [{9.5,10.5},{-13,-11}]               &                       &
-                                                     &                       &
-                                                     &                       &
-                                                     & & & & & y_min & & & & &
+Example:                               & & & & & y_max & & & & &
+  A unit at pos x: 10, y: -12 ,        &                       &
+  with x_size: 1 and y_size: 2         &                       &
+  would be represented with            &          pos          &
+  the following bounding box         x_min       (x,y)       x_max
+  [{9.5,10.5},{-13,-11}]               &                       &
+                                       &                       &
+                                       &                       &
+                                       & & & & & y_min & & & & &
 ```
 
 ## Benchmarking

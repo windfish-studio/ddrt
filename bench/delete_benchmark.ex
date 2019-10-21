@@ -1,6 +1,10 @@
 import IO.ANSI
 
-Drtree.start_link([conf: %{}])
+alias DDRT.DynamicRtreeImpl.Utils
+alias DDRT.DynamicRtree
+alias DDRT.DynamicRtreeImpl.BoundingBoxGenerator
+
+DynamicRtree.start_link([conf: %{}])
 Logger.configure([level: :info])
 
 generate = fn n,s ->
@@ -8,14 +12,14 @@ generate = fn n,s ->
 end
 
 new_tree = fn boxes,typ ->
-  Drtree.new(%{type: typ})
-  Drtree.insert(boxes)
+  DynamicRtree.new(%{type: typ})
+  DynamicRtree.insert(boxes)
 end
 
 Benchee.run(%{
   "map bulk" =>
     {fn ids ->
-        Drtree.delete(ids)
+        DynamicRtree.delete(ids)
   end,
     before_each: fn n ->
                     new_tree.(n,Map)
@@ -23,7 +27,7 @@ Benchee.run(%{
                   end},
   "merklemap bulk" =>
     {fn ids ->
-        Drtree.delete(ids)
+        DynamicRtree.delete(ids)
   end,
     before_each: fn n ->
                     new_tree.(n,MerkleMap)
@@ -31,7 +35,7 @@ Benchee.run(%{
                   end},
   "map 1 by 1" =>
     {fn ids ->
-      ids |> Enum.each(fn id -> Drtree.delete(id) end)
+      ids |> Enum.each(fn id -> DynamicRtree.delete(id) end)
   end,
     before_each: fn n ->
                     new_tree.(n,Map)
@@ -39,7 +43,7 @@ Benchee.run(%{
     end},
   "merklemap 1 by 1" =>
     {fn ids ->
-        ids |> Enum.each(fn id -> Drtree.delete(id) end)
+        ids |> Enum.each(fn id -> DynamicRtree.delete(id) end)
   end,
     before_each: fn n ->
                     new_tree.(n,MerkleMap)

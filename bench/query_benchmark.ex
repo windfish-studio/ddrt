@@ -1,26 +1,30 @@
+alias DDRT.DynamicRtreeImpl.Utils
+alias DDRT.DynamicRtree
+alias DDRT.DynamicRtreeImpl.BoundingBoxGenerator
+
 import IO.ANSI
 
-Drtree.start_link([conf: %{}])
+DynamicRtree.start_link([conf: %{}])
 generate = fn n,s ->
   BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {UUID.uuid1(),x} end)
 end
 
 new_tree = fn boxes,typ ->
-  Drtree.new(%{type: typ})
-  Drtree.insert(boxes)
+  DynamicRtree.new(%{type: typ})
+  DynamicRtree.insert(boxes)
 end
 
 boxes = generate.(10000,1)
 
 Benchee.run(%{
   "map" =>
-  {fn b -> Drtree.query(b)
+  {fn b -> DynamicRtree.query(b)
   end,
   before_scenario: fn b ->
                       new_tree.(boxes,Map)
                       b end},
   "merklemap" =>
-    {fn b -> Drtree.query(b)
+    {fn b -> DynamicRtree.query(b)
   end,
   before_scenario: fn b ->
                       new_tree.(boxes,MerkleMap)

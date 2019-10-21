@@ -1,4 +1,25 @@
 defmodule DDRT do
+  @behaviour DDRT.DynamicRtreeImpl
+  alias DDRT.DynamicRtree
+
+  defdelegate delete(ids, name), to: DynamicRtree
+  defdelegate insert(leaves, name), to: DynamicRtree
+  defdelegate metadata(name), to: DynamicRtree
+  defdelegate pquery(box, depth, name), to: DynamicRtree
+  defdelegate query(box, name), to: DynamicRtree
+  defdelegate update(ids, box, name), to: DynamicRtree
+  defdelegate bulk_update(leaves, name), to: DynamicRtree
+  defdelegate new(opts, name), to: DynamicRtree
+  defdelegate tree(name), to: DynamicRtree
+
+  @type tree_config :: [
+          name: atom(),
+          width: integer(),
+          type: module(),
+          verbose: boolean(),
+          seed: integer()
+        ]
+
   @moduledoc """
   This is the top level module, which one you should include at your application supervision tree.
 
@@ -63,7 +84,7 @@ defmodule DDRT do
             eduardo@elixir_rtree $ iex --name b@localhost -S mix
             iex(b@localhost)1>
 
-  Finally, if you started in both nodes a `DDRT` with the same name you can simply use the `Drtree` API module and you will have the r-tree sync between nodes.
+  Finally, if you started in both nodes a `DDRT` with the same name you can simply use the `DynamicRtree` API module and you will have the r-tree sync between nodes.
 
   `Note`: is important that you have the same configuration for the DDRT at the different nodes.
 
@@ -80,35 +101,41 @@ defmodule DDRT do
 
 
   ## Default values
-  This would be the default value of every parameters if you omit someone.
-      %{
-        name: Drtree
+      [
+        name: DynamicRtree
         width: 6,
         type: Map,
-        mode: :standalone,
         verbose: false,
         seed: 0
-      }
+      ]
   """
-  @spec start_link(%{})::{:ok,pid}
+  @spec start_link(tree_config()) :: {:ok, pid}
   def start_link(opts) do
-    name = if opts[:name], do: opts[:name], else: Drtree
-    children =
-      if opts[:mode] == :distributed do
-        [
-          {Cluster.Supervisor, [Application.get_env(:libcluster,:topologies), [name: Module.concat([name,ClusterSupervisor])]]},
-          {DeltaCrdt, [crdt: DeltaCrdt.AWLWWMap, name: Module.concat([name,Crdt]), on_diffs: &on_diffs(&1,Drtree,name)]},
-          {Drtree, [conf: opts, crdt: Module.concat([name,Crdt]), name: name]}
-        ]
-        else
-        [ {Drtree, [conf: opts, name: name]} ]
-      end
+    name = Keyword.get(opts, :name, DynamicRtree)
 
-    Supervisor.start_link(children, strategy: :one_for_one, name: Module.concat([name,Supervisor]))
+    children = [
+      {Cluster.Supervisor,
+       [
+         Application.get_env(:libcluster, :topologies),
+         [name: Module.concat([name, ClusterSupervisor])]
+       ]},
+      {DeltaCrdt,
+       [
+         crdt: DeltaCrdt.AWLWWMap,
+         name: Module.concat([name, Crdt]),
+         on_diffs: &on_diffs(&1, DynamicRtree, name)
+       ]},
+      {DynamicRtree, [conf: opts, crdt: Module.concat([name, Crdt]), name: name]}
+    ]
+
+    Supervisor.start_link(children,
+      strategy: :one_for_one,
+      name: Module.concat([name, Supervisor])
+    )
   end
 
   @doc false
-  def on_diffs(diffs,mod,name) do
-    mod.merge_diffs(diffs,name)
+  def on_diffs(diffs, mod, name) do
+    mod.merge_diffs(diffs, name)
   end
 end
