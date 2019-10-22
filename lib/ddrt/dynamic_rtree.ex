@@ -39,6 +39,7 @@ defmodule DDRT.DynamicRtree do
   @callback tree(name :: GenServer.name()) :: map()
   @callback set_members(name :: GenServer.name(), [member()]) :: :ok
 
+  @doc false
   defmacro doc_referral({name, arity}) do
     "See `DDRT.DynamicRtree.#{name}/#{arity}` for documentation and usage examples."
   end
@@ -381,6 +382,18 @@ defmodule DDRT.DynamicRtree do
     GenServer.call(name, :tree)
   end
 
+  @doc """
+  Set the members of the `DDRT` cluster.
+
+  `members` should be in the format `{GenServer.name(), node()}`.
+
+  ## Examples
+
+  ```
+  DDRT.set_members(DDRT, [{DDRT.A, :yournode@foreignhost}, {DDRT.B, :yournode@foreignhost}])
+  ```
+
+  """
   @spec set_members(name :: GenServer.name(), [member()]) :: :ok
   def set_members(name, members) do
     :ok = GenServer.call(name, {:set_members, members})
