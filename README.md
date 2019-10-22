@@ -7,7 +7,22 @@ A __D__ynamic, __D__istributed [__R__-__T__ree](https://en.wikipedia.org/wiki/R-
 
 The library uses [@derekkraan](https://github.com/derekkraan)'s [MerkleMap](https://github.com/derekkraan/merkle_map) and [CRDT](https://github.com/derekkraan/delta_crdt_ex) implementations to ensure reliable, "eventually consistent" distributed behavior.
 
+The complete documentation is [available on hexdocs](https://hexdocs.pm/dynamic_rtree). You can find the hex package [here](https://hex.pm/packages/dynamic_rtree).
+
 # Getting Started
+## Installation
+
+The package can be installed
+by adding `dynamic_rtree` to your list of dependencies in `mix.exs`:
+
+```elixir
+def deps do
+  [
+    {:ddrt, "~> 0.2.1"}
+  ]
+end
+```
+## Starting DDRT Processes
 
 Start up a DDRT process with default values
 
@@ -38,6 +53,7 @@ Otherwise if you're just looking to use the standalone R-tree functionality on a
 ```elixir
 DDRT.DynamicRtree.start_link([name: DynamicRtree])
 ```
+
 Note: all configuration parameters and public API methods are _exactly_ the same between the `DDRT` and `DDRT.DynamicRtree` modules.
  
 ## Configuration
@@ -82,25 +98,36 @@ eduardo@ddrt $ iex --name b@localhost -S mix
 iex(b@localhost)1>
 ```
 
+Finally, after starting DDRT on each node you would use `DDRT.set_members/2` to begin communication between DDRT processes like this:
+
+```elixir
+# on node A:
+{:ok, _pid} = DDRT.start_link([name: DDRT])
+DDRT.set_members(DDRT, [{DDRT, :b@localhost}])
+
+# on node B:
+{:ok, _pid} = DDRT.start_link([name: DDRT])
+DDRT.set_members(DDRT, [{DDRT, :a@localhost}])
+``` 
+
+From here, everything done on either tree will be reflected in the other tree.
+
 Note: it's important that you have the same configuration parameters for each `DDRT` process running on each connected node in your cluster.
 
 
-# DynamicRtree
+# Usage
 
-This is the API module of the elixir r-tree implementation where you can do the basic actions.
+Starts a local DDRT named `:peter`
 
-
-## Easy to use:
-
-Starts a local r-tree named as Peter
 ```elixir
-iex> DDRT.start_link(%{name: Peter})
+iex> DDRT.start_link([name: :peter])
 {:ok, #PID<0.214.0>}
 ```
   
-Insert "Griffin" on r-tree named as Peter
+Insert "Griffin" into the `:peter` DDRT
+
 ```elixir
-iex> DynamicRtree.insert({"Griffin",[{4,5},{6,7}]},Peter)
+iex> DDRT.insert({"Griffin", [{4,5}, {6,7}]}, :peter)
 {:ok,
   %{
     43143342109176739 => {["Griffin"], nil, [{4, 5}, {6, 7}]},
@@ -110,10 +137,10 @@ iex> DynamicRtree.insert({"Griffin",[{4,5},{6,7}]},Peter)
 }}
 ```
 
-Insert "Parker" on r-tree named as Peter
+Insert "Parker" on into the `:peter` DDRT
 
 ```elixir
-iex> DynamicRtree.insert({"Parker",[{10,11},{16,17}]},Peter)
+iex> DDRT.insert({"Parker",[{10,11},{16,17}]},:peter)
 {:ok,
   %{
     43143342109176739 => {["Parker", "Griffin"], nil, [{4, 11}, {6, 17}]},
@@ -124,17 +151,17 @@ iex> DynamicRtree.insert({"Parker",[{10,11},{16,17}]},Peter)
 }}
 ```
 
-Query which leafs at Peter r-tree overlap with box `[{0,7},{4,8}]`
+Query which leaves in the `:peter` R-tree overlap with box `[{0,7},{4,8}]`
 
 ```elixir
-iex> DynamicRtree.query([{0,7},{4,8}],Peter)
+iex> DDRT.query([{0,7},{4,8}],:peter)
 {:ok, ["Griffin"]}
 ```
  
-Updates "Griffin" bounding box
+Updates "Griffin" bounding box in the `:peter` R-tree
 
 ```elixir
-iex> DynamicRtree.update("Griffin",[{-6,-5},{11,12}],Peter)
+iex> DDRT.update("Griffin", [{-6,-5},{11,12}], :peter)
 {:ok,
   %{
     43143342109176739 => {["Parker", "Griffin"], nil, [{-6, 11}, {6, 17}]},
@@ -145,17 +172,17 @@ iex> DynamicRtree.update("Griffin",[{-6,-5},{11,12}],Peter)
 }}
 ```
 
-Repeat again the last query
+Repeat the last query again. (This time "Griffin" is no longer within the query bounding box.)
 
 ```elixir
- iex> DynamicRtree.query([{0,7},{4,8}],Peter)
- {:ok, []} # Peter "Griffin" left the query bounding box
+ iex> DDRT.query([{0,7},{4,8}], :peter)
+ {:ok, []}
 ```
   
-Let's punish them
+Now lets delete both "Griffin" and "Parker" keys from the tree.
 
 ```elixir
-iex> DynamicRtree.delete(["Griffin","Parker"],Peter)
+iex> DDRT.delete(["Griffin","Parker"], :peter)
 {:ok,
   %{
     43143342109176739 => {[], nil, [{0, 0}, {0, 0}]},
@@ -164,11 +191,9 @@ iex> DynamicRtree.delete(["Griffin","Parker"],Peter)
 }}
 ```
 
-## Easy concepts:
+### Bounding-Box Format
 
-Bounding box format.
-
-`[{x_min,x_max},{y_min,y_max}]`
+`[{x_min,x_max}, {y_min,y_max}]`
 
 ```elixir
 Example:                               & & & & & y_max & & & & &
@@ -182,7 +207,13 @@ Example:                               & & & & & y_max & & & & &
                                        & & & & & y_min & & & & &
 ```
 
-## Benchmarking
+### Standalone (non-distributed) R-tree mode
+
+If you're only interested in using an R-tree on a single machine in Elixir, you should be using the `DDRT.DistributedRtree` module. This module is optimized to run on a single machine, and as such the r-tree is significantly faster without the distribution overhead.
+
+The `DDRT.DistributedRtree` module shares the same API and initialization options as the main `DDRT` module.
+
+## Benchmarks
 
 ```elixir
 Operating System: macOS
@@ -318,22 +349,3 @@ map 1 by 1               66.73 - 4.58x slower +11.71 ms
 merklemap 1 by 1         23.00 - 13.28x slower +40.21 ms
 
 ```
-
-
-## Installation
-
-The package can be installed
-by adding `dynamic_rtree` to your list of dependencies in `mix.exs`:
-
-```elixir
-def deps do
-  [
-    {:dynamic_rtree, "~> 0.2.0"}
-  ]
-end
-```
-## Usage
-
-Everything is well defined and pretty at [documentation](https://hexdocs.pm/dynamic_rtree/0.2.0/).
-
-You can also find the hex package [here](https://hex.pm/packages/dynamic_rtree/0.2.0).
