@@ -4,7 +4,7 @@
 
 # :ddrt (README)
 
-A __D__ynamic, __D__istributed [__R__-__T__ree](https://en.wikipedia.org/wiki/R-tree) (DDRT) library written in Elixir. The 'dynamic' part of the title refers to the fact that this implementation is optimized for a high volume of update operations. Put another way, this is an R-tree best suited for use with spatial data _in constant movement_. The 'distributed' part refers to the fact that this library is designed to maintain a spatial index (rtree) across a cluster of distributed elixir nodes. 
+A Dynamic, Distributed [R-Tree](https://en.wikipedia.org/wiki/R-tree) (__DDRT__) library written in Elixir. The 'dynamic' part of the title refers to the fact that this implementation is optimized for a high volume of update operations. Put another way, this is an R-tree best suited for use with spatial data _in constant movement_. The 'distributed' part refers to the fact that this library is designed to maintain a spatial index (rtree) across a cluster of distributed elixir nodes. 
 
 The library uses [@derekkraan](https://github.com/derekkraan)'s [MerkleMap](https://github.com/derekkraan/merkle_map) and [CRDT](https://github.com/derekkraan/delta_crdt_ex) implementations to ensure reliable, "eventually consistent" distributed behavior.
 
@@ -210,9 +210,9 @@ Example:                               & & & & & y_max & & & & &
 
 ### Standalone (non-distributed) R-tree mode
 
-If you're only interested in using an R-tree on a single machine in Elixir, you should be using the `DDRT.DistributedRtree` module. This module is optimized to run on a single machine, and as such the r-tree is significantly faster without the distribution overhead.
+If you're only interested in using an R-tree on a single machine in Elixir, you should be using the `DDRT.DynamicRtree` module. This module is optimized to run on a single machine, and as such the r-tree is significantly faster without the distribution overhead.
 
-The `DDRT.DistributedRtree` module shares the same API and initialization options as the main `DDRT` module.
+The `DDRT.DynamicRtree` module shares the same API and initialization options as the main `DDRT` module.
 
 ## Benchmarks
 
