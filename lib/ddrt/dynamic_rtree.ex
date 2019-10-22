@@ -39,20 +39,43 @@ defmodule DDRT.DynamicRtree do
   @callback tree(name :: GenServer.name()) :: map()
   @callback set_members(name :: GenServer.name(), [member()]) :: :ok
 
+  defmacro doc_referral({name, arity}) do
+    "See `DDRT.DynamicRtree.#{name}/#{arity}` for documentation and usage examples."
+  end
+
   defmacro __using__(_) do
     quote do
       alias DDRT.DynamicRtree
       @behaviour DynamicRtree
 
+      @doc unquote(doc_referral({:delete, 2}))
       defdelegate delete(ids, name), to: DynamicRtree
+
+      @doc unquote(doc_referral({:insert, 2}))
       defdelegate insert(leaves, name), to: DynamicRtree
+
+      @doc unquote(doc_referral({:metadata, 1}))
       defdelegate metadata(name), to: DynamicRtree
+      
+      @doc unquote(doc_referral({:pquery, 3}))
       defdelegate pquery(box, depth, name), to: DynamicRtree
+
+      @doc unquote(doc_referral({:query, 2}))
       defdelegate query(box, name), to: DynamicRtree
+
+      @doc unquote(doc_referral({:update, 3}))
       defdelegate update(ids, box, name), to: DynamicRtree
+
+      @doc unquote(doc_referral({:bulk_update, 2}))
       defdelegate bulk_update(leaves, name), to: DynamicRtree
+
+      @doc unquote(doc_referral({:new, 2}))
       defdelegate new(opts, name), to: DynamicRtree
+
+      @doc unquote(doc_referral({:tree, 1}))
       defdelegate tree(name), to: DynamicRtree
+
+      @doc unquote(doc_referral({:set_members, 2}))
       defdelegate set_members(name, members), to: DynamicRtree
     end
   end
@@ -67,6 +90,15 @@ defmodule DDRT.DynamicRtree do
   Use this module if you're interested in creating an R-Tree optimized to run on a single machine. If you'd instead like to run a distributed R-Tree on a cluster of Elixir nodes, use the `DDRT` module.
   """
 
+  @doc """
+  These are all of the possible configuration parameters for `opts` and their default values:
+
+  - **name**: The name of the DDRT process. Defaults to `DDRT`
+  - **width**: The max number of children a node may have. Defaults to `6`
+  - **verbose**: allows `Logger` to report console logs. (Also decreases performance). Defaults to `false`.
+  - **seed**: Sets the seed value for the pseudo-random number generator which generates the unique IDs for each node in the tree. This is a deterministic process; so the same seed value will guarantee the same pseudo-random unique IDs being generated for your tree in the same order each time. Defaults to `0`
+  """
+  @spec start_link(opts :: tree_init()) :: {:ok, pid()} | {:error, term()}
   def start_link(opts) do
     name = Keyword.get(opts, :name, DDRT)
     GenServer.start_link(__MODULE__, opts, name: name)
@@ -121,43 +153,47 @@ defmodule DDRT.DynamicRtree do
   def insert(_a, name \\ DDRT)
 
   @doc """
-    Insert `leaves` at the r-tree named as `name`
+    Insert `leaves` into the r-tree with process with name `name`
 
     Returns `{:ok,map()}`
 
   ## Parameters
 
     - `leaves`: the data to insert.
-    - `name`: the r-tree name where you wanna insert.
+    - `name`: the r-tree name where you want to insert.
 
   ## Examples
-    1 by 1.
-      iex> DynamicRtree.insert({"Griffin",[{4,5},{6,7}]},Peter)
-      iex> DynamicRtree.insert({"Parker",[{14,15},{16,17}]},Peter)
+    
+    Individual insertion:
+    
+    ```
+    iex> DynamicRtree.insert({"Griffin", [{4,5},{6,7}]}, :my_rtree)
+    iex> DynamicRtree.insert({"Parker", [{14,15},{16,17}]}, :my_rtree)
 
-      {:ok,
-      %{
-       43143342109176739 => {["Parker", "Griffin"], nil, [{4, 15}, {6, 17}]},
-       :root => 43143342109176739,
-       :ticket => [19125803434255161 | 82545666616502197],
-       "Griffin" => {:leaf, 43143342109176739, [{4, 5}, {6, 7}]},
-       "Parker" => {:leaf, 43143342109176739, [{14, 15}, {16, 17}]}
-      }}
+    {:ok,
+    %{
+     43143342109176739 => {["Parker", "Griffin"], nil, [{4, 15}, {6, 17}]},
+     :root => 43143342109176739,
+     :ticket => [19125803434255161 | 82545666616502197],
+     "Griffin" => {:leaf, 43143342109176739, [{4, 5}, {6, 7}]},
+     "Parker" => {:leaf, 43143342109176739, [{14, 15}, {16, 17}]}
+    }}
+    ```
 
-
-    Bulk.
-      iex> DynamicRtree.insert([{"Griffin",[{4,5},{6,7}]},{"Parker",[{14,15},{16,17}]}],Peter)
-
-      {:ok,
-      %{
-       43143342109176739 => {["Parker", "Griffin"], nil, [{4, 15}, {6, 17}]},
-       :root => 43143342109176739,
-       :ticket => [19125803434255161 | 82545666616502197],
-       "Griffin" => {:leaf, 43143342109176739, [{4, 5}, {6, 7}]},
-       "Parker" => {:leaf, 43143342109176739, [{14, 15}, {16, 17}]}
-      }}
-
-
+    Bulk Insertion:
+    
+    ```
+    iex> DynamicRtree.insert([{"Griffin", [{4,5},{6,7}]}, {"Parker", [{14,15},{16,17}]}], :my_rtree)
+  
+    {:ok,
+    %{
+     43143342109176739 => {["Parker", "Griffin"], nil, [{4, 15}, {6, 17}]},
+     :root => 43143342109176739,
+     :ticket => [19125803434255161 | 82545666616502197],
+     "Griffin" => {:leaf, 43143342109176739, [{4, 5}, {6, 7}]},
+     "Parker" => {:leaf, 43143342109176739, [{14, 15}, {16, 17}]}
+    }}
+    ```
   """
 
   def insert(leaves, name) when is_list(leaves) do
@@ -175,7 +211,7 @@ defmodule DDRT.DynamicRtree do
 
   ## Examples
 
-      iex> DynamicRtree.query([{0,7},{4,8}],Peter)
+      iex> DynamicRtree.query([{0,7},{4,8}],:my_rtree)
       {:ok, ["Griffin"]}
 
   """
@@ -206,16 +242,22 @@ defmodule DDRT.DynamicRtree do
 
   ## Parameters
 
-    - `ids`: Id or list of Id that you wanna delete.
-    - `name`: the r-tree name where you wanna delete.
+    - `ids`: Id or list of Id that you want to delete.
+    - `name`: the name of the rtree process.
 
   ## Examples
-    1 by 1.
-      iex> DynamicRtree.delete("Griffin",Peter)
-      iex> DynamicRtree.delete("Parker",Peter)
+    Individual deletion:
+    
+    ```
+    iex> DynamicRtree.delete("Griffin",:my_rtree)
+    iex> DynamicRtree.delete("Parker",:my_rtree)
+    ```
 
-    Bulk.
-      iex> DynamicRtree.delete(["Griffin","Parker"],Peter)
+    Bulk Deletion:
+    
+    ```
+    iex> DynamicRtree.delete(["Griffin","Parker"],:my_rtree)
+    ```
   """
 
   def delete(ids, name) when is_list(ids) do
@@ -233,17 +275,18 @@ defmodule DDRT.DynamicRtree do
 
   ## Examples
 
-      iex> DynamicRtree.bulk_update([{"Griffin",[{0,1},{0,1}]},{"Parker",[{10,11},{10,11}]}],Peter)
+  ```
+  iex> DynamicRtree.bulk_update([{"Griffin",[{0,1},{0,1}]},{"Parker",[{10,11},{10,11}]}],:my_rtree)
 
-      {:ok,
-      %{
-       43143342109176739 => {["Parker", "Griffin"], nil, [{0, 11}, {0, 11}]},
-       :root => 43143342109176739,
-       :ticket => [19125803434255161 | 82545666616502197],
-       "Griffin" => {:leaf, 43143342109176739, [{0, 1}, {0, 1}]},
-       "Parker" => {:leaf, 43143342109176739, [{10, 11}, {10, 11}]}
-      }}
-
+  {:ok,
+  %{
+   43143342109176739 => {["Parker", "Griffin"], nil, [{0, 11}, {0, 11}]},
+   :root => 43143342109176739,
+   :ticket => [19125803434255161 | 82545666616502197],
+   "Griffin" => {:leaf, 43143342109176739, [{0, 1}, {0, 1}]},
+   "Parker" => {:leaf, 43143342109176739, [{10, 11}, {10, 11}]}
+  }}
+  ```
   """
   @spec bulk_update(leaves :: list(leaf()), name :: GenServer.name()) :: {:ok, map()}
   def bulk_update(updates, name \\ DDRT) when is_list(updates) do
@@ -256,8 +299,8 @@ defmodule DDRT.DynamicRtree do
   Returns `{:ok,map()}`
 
   ## Examples
-
-  iex> DynamicRtree.update({"Griffin",[{0,1},{0,1}]},Peter)
+  ```
+  iex> DynamicRtree.update({"Griffin",[{0,1},{0,1}]},:my_rtree)
 
   {:ok,
   %{
@@ -267,7 +310,7 @@ defmodule DDRT.DynamicRtree do
    "Griffin" => {:leaf, 43143342109176739, [{0, 1}, {0, 1}]},
    "Parker" => {:leaf, 43143342109176739, [{10, 11}, {16, 17}]}
   }}
-
+  ```
   """
 
   @spec update(
@@ -287,7 +330,7 @@ defmodule DDRT.DynamicRtree do
 
   ## Examples
 
-      iex> DynamicRtree.metadata(Peter)
+      iex> DynamicRtree.metadata(:my_rtree)
 
       %{
         params: %{mode: :standalone, seed: 0, type: Map, verbose: false, width: 6},
@@ -318,16 +361,17 @@ defmodule DDRT.DynamicRtree do
 
   ## Examples
 
-      iex> DynamicRtree.metadata(Peter)
+  ```
+  iex> DynamicRtree.metadata(:my_rtree)
 
-      %{
-        43143342109176739 => {["Parker", "Griffin"], nil, [{0, 11}, {0, 11}]},
-        :root => 43143342109176739,
-        :ticket => [19125803434255161 | 82545666616502197],
-        "Griffin" => {:leaf, 43143342109176739, [{0, 1}, {0, 1}]},
-        "Parker" => {:leaf, 43143342109176739, [{10, 11}, {10, 11}]}
-      }
-
+  %{
+    43143342109176739 => {["Parker", "Griffin"], nil, [{0, 11}, {0, 11}]},
+    :root => 43143342109176739,
+    :ticket => [19125803434255161 | 82545666616502197],
+    "Griffin" => {:leaf, 43143342109176739, [{0, 1}, {0, 1}]},
+    "Parker" => {:leaf, 43143342109176739, [{10, 11}, {10, 11}]}
+  }
+  ```
 
   """
   @spec tree(name :: GenServer.name()) :: map()
