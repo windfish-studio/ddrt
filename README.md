@@ -1,4 +1,4 @@
-[![CircleCI](https://circleci.com/gh/windfish-studio/rtree/tree/master.svg?style=svg)](https://circleci.com/gh/windfish-studio/rtree/tree/master)
+[![CircleCI](https://circleci.com/gh/windfish-studio/ddrt.svg?style=svg)](https://circleci.com/gh/windfish-studio/ddrt)
 [![LICENSE](https://img.shields.io/hexpm/l/dynamic_rtree)](https://rawcdn.githack.com/windfish-studio/rtree/1479e8660336fb0a63fc6a39185c10e1ab940d7b/LICENSE)
 [![VERSION](https://img.shields.io/hexpm/v/dynamic_rtree)](https://hexdocs.pm/dynamic_rtree/api-reference.html)
 
