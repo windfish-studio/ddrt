@@ -22,17 +22,17 @@ defmodule DynamicRtreeTest.Distribution do
 
   describe "[DynamicRtree distributed]" do
     test "tree insert/update/delete sync" do
-      empty_tree = DynamicRtree.tree(B)
-      DynamicRtree.insert({0, [{4, 5}, {6, 7}]}, A)
+      empty_tree = DDRT.tree(B)
+      DDRT.insert({0, [{4, 5}, {6, 7}]}, A)
       Process.sleep(200)
-      refute DynamicRtree.tree(B) == empty_tree
+      refute DDRT.tree(B) == empty_tree
       assert DeltaCrdt.read(A.Crdt) == DeltaCrdt.read(B.Crdt)
-      assert DynamicRtree.tree(A) == DynamicRtree.tree(B)
+      assert DDRT.tree(A) == DDRT.tree(B)
 
       assert DeltaCrdt.read(A.Crdt) |> DynamicRtree.reconstruct_from_crdt(empty_tree) ==
-               DynamicRtree.tree(A)
+               DDRT.tree(A)
 
-      DynamicRtree.insert(
+      DDRT.insert(
         [
           {1, [{-34, -33}, {40, 41}]},
           {2, [{-50, -49}, {15, 16}]},
@@ -44,18 +44,18 @@ defmodule DynamicRtreeTest.Distribution do
         B
       )
 
-      refute DynamicRtree.tree(A) == DynamicRtree.tree(B)
+      refute DDRT.tree(A) == DDRT.tree(B)
       Process.sleep(200)
-      assert DynamicRtree.tree(A) == DynamicRtree.tree(B)
+      assert DDRT.tree(A) == DDRT.tree(B)
 
-      DynamicRtree.update(0, [{10, 11}, {16, 17}], A)
-      old_tree = DynamicRtree.tree(B)
+      DDRT.update(0, [{10, 11}, {16, 17}], A)
+      old_tree = DDRT.tree(B)
       Process.sleep(200)
-      refute DynamicRtree.tree(B) == old_tree
+      refute DDRT.tree(B) == old_tree
       assert DeltaCrdt.read(A.Crdt) == DeltaCrdt.read(B.Crdt)
-      assert DynamicRtree.tree(A) == DynamicRtree.tree(B)
+      assert DDRT.tree(A) == DDRT.tree(B)
 
-      DynamicRtree.bulk_update(
+      DDRT.bulk_update(
         [
           {1, [{-4, -3}, {4, 5}]},
           {2, [{-5, -4}, {5, 6}]},
@@ -67,21 +67,21 @@ defmodule DynamicRtreeTest.Distribution do
         B
       )
 
-      refute DynamicRtree.tree(A) == DynamicRtree.tree(B)
+      refute DDRT.tree(A) == DDRT.tree(B)
       Process.sleep(200)
-      assert DynamicRtree.tree(A) == DynamicRtree.tree(B)
+      assert DDRT.tree(A) == DDRT.tree(B)
 
-      DynamicRtree.delete(0, A)
-      old_tree = DynamicRtree.tree(B)
+      DDRT.delete(0, A)
+      old_tree = DDRT.tree(B)
       Process.sleep(200)
-      refute DynamicRtree.tree(B) == old_tree
+      refute DDRT.tree(B) == old_tree
       assert DeltaCrdt.read(A.Crdt) == DeltaCrdt.read(B.Crdt)
-      assert DynamicRtree.tree(A) == DynamicRtree.tree(B)
+      assert DDRT.tree(A) == DDRT.tree(B)
 
-      DynamicRtree.delete([1, 2, 3, 4, 5, 6], B)
-      refute DynamicRtree.tree(A) == DynamicRtree.tree(B)
+      DDRT.delete([1, 2, 3, 4, 5, 6], B)
+      refute DDRT.tree(A) == DDRT.tree(B)
       Process.sleep(200)
-      assert DynamicRtree.tree(A) == DynamicRtree.tree(B)
+      assert DDRT.tree(A) == DDRT.tree(B)
 
       send(A, {:nodeup, [], []})
       send(A, {:nodedown, [], []})

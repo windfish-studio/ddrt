@@ -2,102 +2,88 @@
 [![LICENSE](https://img.shields.io/hexpm/l/dynamic_rtree)](https://rawcdn.githack.com/windfish-studio/rtree/1479e8660336fb0a63fc6a39185c10e1ab940d7b/LICENSE)
 [![VERSION](https://img.shields.io/hexpm/v/dynamic_rtree)](https://hexdocs.pm/dynamic_rtree/api-reference.html)
 
-# :dynamic_rtree
+# :ddrt
 A __D__ynamic, __D__istributed [__R__-__T__ree](https://en.wikipedia.org/wiki/R-tree) (DDRT) library written in Elixir. The 'dynamic' part of the title refers to the fact that this implementation is optimized for a high volume of update operations. Put another way, this is an R-tree best suited for use with spatial data _in constant movement_. The 'distributed' part refers to the fact that this library is designed to maintain a spatial index (rtree) across a cluster of distributed elixir nodes. 
 
 The library uses [@derekkraan](https://github.com/derekkraan)'s [MerkleMap](https://github.com/derekkraan/merkle_map) and [CRDT](https://github.com/derekkraan/delta_crdt_ex) implementations to ensure reliable, "eventually consistent" distributed behavior.
 
-# DDRT
+# Getting Started
 
-If you want the distributed dynamic r-tree, start this process is a MUST.
+Start up a DDRT process with default values
 
 ```elixir
 DDRT.start_link([
-  name: DynamicRtree
+  name: DDRT
   width: 6,
-  type: Map,
   verbose: false,
   seed: 0
 ])
 ```
 
-or
+Or add it to your supervision tree:
 
 ```elixir
-children = [
-  ...
-  {DDRT, %{}}
+Supervisor.start_link([
+  {DDRT, [
+  	name: DDRT,
+  	width: 6,
+  	verbose: false,
+  	seed: 0
+  ]}
+], [name: MySupervisor])
+```
+
+Otherwise if you're just looking to use the standalone R-tree functionality on a single machine (not a cluster of machines), you would instead use the `DDRT.DynamicRtree` module:
+
+```elixir
+DDRT.DynamicRtree.start_link([name: DynamicRtree])
+```
+Note: all configuration parameters and public API methods are _exactly_ the same between the `DDRT` and `DDRT.DynamicRtree` modules.
+ 
+## Configuration
+
+Available configuration parameters are:
+
+- **name**: The name of the DDRT process. Defaults to `DDRT`
+- **width**: The max number of children a node may have. Defaults to `6`
+- **verbose**: allows `Logger` to report console logs. (Also decreases performance). Defaults to `false`.
+- **seed**: Sets the seed value for the pseudo-random number generator which generates the unique IDs for each node in the tree. This is a deterministic process; so the same seed value will guarantee the same pseudo-random unique IDs being generated for your tree in the same order each time. Defaults to `0`
+
+## Replicating your R-Tree in a cluster
+
+First it's important to understand that distributed networking capabilities come built-in with Erlang. To get Elixir processes communicating amongst themselves over a network in general, we first have to use that fundamental Erlang networking magic to make all of the running Erlang Virtual Machines "aware" of eachother's existence on the network. In Elixir, these concepts are expressed in the [Node](https://hexdocs.pm/elixir/Node.html) module. One can use `Node.connect/2`
+to make two Erlang VM nodes aware of eachother, and then Elixir processes are able to send messages to eachother on those nodes.
+
+
+Connecting up the Erlang VMs in your cluster is outside of the scope of this package. There are already other libraries in Elixir designed to do exactly this. Possibly the best example is [`bitwalker/libcluster`](https://github.com/bitwalker/libcluster).
+
+A very simple `libcluster` configuration for quick and easy development might look like:
+
+```elixir
+## config.exs ##
+
+use Mix.Config
+config :libcluster,
+topologies: [
+ example: [
+   strategy: Cluster.Strategy.Epmd,
+   config: [hosts: [:"a@localhost", :"b@localhost"]],
+ ]
 ]
 ```
 
-Else, if you want just the dynamic r-tree this module is not a MUST, but you can use it anyways.
-
-## Configuration
-
-Let's talk about which parameters you can pass to init the DDRT.
-
-**name**: the name of the r-tree.
-
-**mode**: the mode of the r-tree. 
-
-There are two:
-   
-```elixir
-:dynamic: all the r-trees with same name in different nodes will be sync.
-
-:standalone: a dynamic r-tree that just will be at your node.
-```   
-  
-**width**: the max width (the number of childs) than can handle every node.
-
-**type**: the type of data structure that maintains the r-tree. 
-
-There are two:
+Then you would have to pass in those same node names to `iex` when you start your application, like:
 
 ```elixir
-Map: faster way. Recommended if you don't need sync.
-
-MerkleMap: a bit slower, but perfect to get minimum r-tree modifications.
-```
-
-**verbose**: allows `Logger` to report console logs. (Decrease performance)
-
-**seed**: the start seed for the middle nodes uniq ID of the r-tree. Same seed will always reach same sequence of uniq ID's.
-
-## Distributed part
-
-You have to config the Erlang node interconnection with `libcluster`.
-
-The easy way is that:
-
-At `config.exs` define the nodes you want to connect:
-
-```elixir
- use Mix.Config
- config :libcluster,
- topologies: [
-  example: [
-    # The selected clustering strategy. Required.
-    strategy: Cluster.Strategy.Epmd,
-    # Configuration for the provided strategy. Optional.
-    config: [hosts: [:"a@localhost", :"b@localhost"]],
-  ]
- ]
-```
-
-Then you should start you application for example like that:
-
-```elixir
-eduardo@elixir_rtree $ iex --name a@localhost -S mix
+eduardo@ddrt $ iex --name a@localhost -S mix
 iex(a@localhost)1>
 
-eduardo@elixir_rtree $ iex --name b@localhost -S mix
+eduardo@ddrt $ iex --name b@localhost -S mix
 iex(b@localhost)1>
 ```
 
-Finally, if you started in both nodes a `DDRT` with the same name you can simply use the `DynamicRtree` API module and you will have the r-tree sync between nodes.
+Note: it's important that you have the same configuration parameters for each `DDRT` process running on each connected node in your cluster.
 
-`Note`: is important that you have the same configuration for the DDRT at the different nodes.
 
 # DynamicRtree
 

@@ -142,7 +142,7 @@ defmodule DDRT.DynamicRtree do
   """
 
   def start_link(opts) do
-    name = Keyword.get(opts, :name, __MODULE__)
+    name = Keyword.get(opts, :name, DDRT)
     GenServer.start_link(__MODULE__, opts, name: name)
   end
 
@@ -187,12 +187,12 @@ defmodule DDRT.DynamicRtree do
   ]
 
   @spec new(opts :: Keyword.t(), name :: GenServer.name()) :: {:ok, map()}
-  def new(opts \\ @defopts, name \\ __MODULE__) when is_list(opts) do
+  def new(opts \\ @defopts, name \\ DDRT) when is_list(opts) do
     GenServer.call(name, {:new, opts})
   end
 
   @spec insert(leaves :: leaf() | [leaf()], name :: GenServer.name()) :: {:ok, map()}
-  def insert(_a, name \\ __MODULE__)
+  def insert(_a, name \\ DDRT)
 
   @doc """
     Insert `leafs` at the r-tree named as `name`
@@ -255,7 +255,7 @@ defmodule DDRT.DynamicRtree do
   """
 
   @spec query(box :: bounding_box(), name :: GenServer.name()) :: [id()]
-  def query(box, name \\ __MODULE__) do
+  def query(box, name \\ DDRT) do
     GenServer.call(name, {:query, box})
   end
 
@@ -266,12 +266,12 @@ defmodule DDRT.DynamicRtree do
   """
 
   @spec pquery(box :: bounding_box(), depth :: integer(), name :: GenServer.name()) :: [id()]
-  def pquery(box, depth, name \\ __MODULE__) do
+  def pquery(box, depth, name \\ DDRT) do
     GenServer.call(name, {:query_depth, {box, depth}})
   end
 
   @spec delete(ids :: id() | [id()], name :: GenServer.name()) :: {:ok, map()}
-  def delete(_a, name \\ __MODULE__)
+  def delete(_a, name \\ DDRT)
 
   @doc """
   Delete the leafs with the given `ids`.
@@ -320,7 +320,7 @@ defmodule DDRT.DynamicRtree do
 
   """
   @spec bulk_update(leaves :: list(leaf()), name :: GenServer.name()) :: {:ok, map()}
-  def bulk_update(updates, name \\ __MODULE__) when is_list(updates) do
+  def bulk_update(updates, name \\ DDRT) when is_list(updates) do
     GenServer.call(name, {:bulk_update, updates}, :infinity)
   end
 
@@ -350,7 +350,7 @@ defmodule DDRT.DynamicRtree do
           name :: GenServer.name()
         ) :: {:ok, map()}
 
-  def update(id, update, name \\ __MODULE__) do
+  def update(id, update, name \\ DDRT) do
     GenServer.call(name, {:update, {id, update}})
   end
 
@@ -379,7 +379,7 @@ defmodule DDRT.DynamicRtree do
 
   """
   @spec metadata(name :: GenServer.name()) :: map()
-  def metadata(name \\ __MODULE__)
+  def metadata(name \\ DDRT)
 
   def metadata(name) do
     GenServer.call(name, :metadata)
@@ -405,7 +405,7 @@ defmodule DDRT.DynamicRtree do
 
   """
   @spec tree(name :: GenServer.name()) :: map()
-  def tree(name \\ __MODULE__)
+  def tree(name \\ DDRT)
 
   def tree(name) do
     GenServer.call(name, :tree)
@@ -417,7 +417,7 @@ defmodule DDRT.DynamicRtree do
     :ok
   end
 
-  def merge_diffs(_a, name \\ __MODULE__)
+  def merge_diffs(_a, name \\ DDRT)
   @doc false
   def merge_diffs(diffs, name) do
     send(name, {:merge_diff, diffs})
