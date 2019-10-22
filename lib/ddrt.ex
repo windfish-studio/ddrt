@@ -1,24 +1,6 @@
 defmodule DDRT do
-  @behaviour DDRT.DynamicRtreeImpl
+  use DDRT.DynamicRtree
   alias DDRT.DynamicRtree
-
-  defdelegate delete(ids, name), to: DynamicRtree
-  defdelegate insert(leaves, name), to: DynamicRtree
-  defdelegate metadata(name), to: DynamicRtree
-  defdelegate pquery(box, depth, name), to: DynamicRtree
-  defdelegate query(box, name), to: DynamicRtree
-  defdelegate update(ids, box, name), to: DynamicRtree
-  defdelegate bulk_update(leaves, name), to: DynamicRtree
-  defdelegate new(opts, name), to: DynamicRtree
-  defdelegate tree(name), to: DynamicRtree
-
-  @type tree_config :: [
-          name: atom(),
-          width: integer(),
-          type: module(),
-          verbose: boolean(),
-          seed: integer()
-        ]
 
   @moduledoc """
   This is the top level module, which one you should include at your application supervision tree.
@@ -109,23 +91,24 @@ defmodule DDRT do
         seed: 0
       ]
   """
-  @spec start_link(tree_config()) :: {:ok, pid}
+  @spec start_link(DynamicRtree.tree_config()) :: {:ok, pid}
   def start_link(opts) do
     name = Keyword.get(opts, :name, DynamicRtree)
 
     children = [
-      {Cluster.Supervisor,
-       [
-         Application.get_env(:libcluster, :topologies),
-         [name: Module.concat([name, ClusterSupervisor])]
-       ]},
       {DeltaCrdt,
        [
          crdt: DeltaCrdt.AWLWWMap,
          name: Module.concat([name, Crdt]),
          on_diffs: &on_diffs(&1, DynamicRtree, name)
        ]},
-      {DynamicRtree, [conf: opts, crdt: Module.concat([name, Crdt]), name: name]}
+      {DynamicRtree,
+       [
+         mode: :distributed,
+         conf: opts,
+         crdt: Module.concat([name, Crdt]),
+         name: name
+       ]}
     ]
 
     Supervisor.start_link(children,

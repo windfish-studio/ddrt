@@ -3,7 +3,7 @@ defmodule DynamicRtree.MixProject do
 
   def project do
     [
-      app: :dynamic_rtree,
+      app: :ddrt,
       version: "0.2.0",
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,
@@ -31,7 +31,6 @@ defmodule DynamicRtree.MixProject do
       {:ex_doc, "~> 0.19", only: :dev},
       {:dialyxir, "~> 0.4", only: :dev},
       {:merkle_map, "~> 0.2.0"},
-      {:libcluster, "~> 3.1.1"},
       {:delta_crdt, "~> 0.5.0"}
     ]
   end

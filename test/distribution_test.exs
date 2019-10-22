@@ -4,21 +4,17 @@ defmodule DynamicRtreeTest.Distribution do
 
   setup_all do
     children = [
-      {Cluster.Supervisor,
-       [Application.get_env(:libcluster, :topologies), [name: A.ClusterSupervisor]]},
       {DeltaCrdt,
        [crdt: DeltaCrdt.AWLWWMap, name: CrdtA, on_diffs: &DDRT.on_diffs(&1, DynamicRtree, A)]},
-      {DynamicRtree, [conf: %{mode: :distributed}, name: A, crdt: CrdtA]}
+      {DynamicRtree, [conf: [mode: :distributed], name: A, crdt: CrdtA]}
     ]
 
     Supervisor.start_link(children, strategy: :one_for_one, name: A.Supervisor)
 
     children = [
-      {Cluster.Supervisor,
-       [Application.get_env(:libcluster, :topologies), [name: B.ClusterSupervisor]]},
       {DeltaCrdt,
        [crdt: DeltaCrdt.AWLWWMap, name: CrdtB, on_diffs: &DDRT.on_diffs(&1, DynamicRtree, B)]},
-      {DynamicRtree, [conf: %{mode: :distributed}, name: B, crdt: CrdtB]}
+      {DynamicRtree, [conf: [mode: :distributed], name: B, crdt: CrdtB]}
     ]
 
     Supervisor.start_link(children, strategy: :one_for_one, name: B.Supervisor)

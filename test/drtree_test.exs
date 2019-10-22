@@ -5,7 +5,7 @@ defmodule DynamicRtreeTest do
   alias DDRT.DynamicRtreeImpl.BoundingBoxGenerator
 
   setup_all do
-    DynamicRtree.start_link(conf: %{})
+    DynamicRtree.start_link(conf: [])
     {:ok, %{}}
   end
 
@@ -16,8 +16,7 @@ defmodule DynamicRtreeTest do
       assert t |> is_map()
     end
 
-    test "raise badMapError with not map opts input" do
-      assert_raise FunctionClauseError, fn -> DynamicRtree.new([1, 2, 3]) end
+    test "raise badMapError with not map opts keyword list" do
       assert_raise FunctionClauseError, fn -> DynamicRtree.new(1) end
       assert_raise FunctionClauseError, fn -> DynamicRtree.new(:map) end
       assert_raise FunctionClauseError, fn -> DynamicRtree.new("pokemon") end
@@ -60,7 +59,7 @@ defmodule DynamicRtreeTest do
     end
 
     test "MerkleMap insert and bulk insert works as expected" do
-      DynamicRtree.new(%{type: MerkleMap})
+      DynamicRtree.new(type: MerkleMap)
       new_tuple = {new_node, _new_box} = {UUID.uuid1(), [{1, 2}, {3, 4}]}
       {:ok, t} = DynamicRtree.insert(new_tuple)
       assert t == DynamicRtree.tree()
@@ -69,7 +68,7 @@ defmodule DynamicRtreeTest do
       assert parent == t[:root]
       assert box == [{1, 2}, {3, 4}]
 
-      DynamicRtree.new(%{type: MerkleMap})
+      DynamicRtree.new(type: MerkleMap)
 
       {:ok, t} =
         DynamicRtree.insert([
@@ -131,7 +130,7 @@ defmodule DynamicRtreeTest do
     end
 
     test "MerkleMap delete leaf keeps tree consistency" do
-      DynamicRtree.new(%{type: MerkleMap})
+      DynamicRtree.new(type: MerkleMap)
 
       data =
         BoundingBoxGenerator.generate(100, 1, [])
@@ -215,7 +214,7 @@ defmodule DynamicRtreeTest do
     end
 
     test "MerkleMap queries return good stuff" do
-      DynamicRtree.new(%{type: MerkleMap})
+      DynamicRtree.new(type: MerkleMap)
 
       DynamicRtree.insert([
         {0, [{4, 5}, {6, 7}]},
@@ -251,7 +250,7 @@ defmodule DynamicRtreeTest do
       assert DynamicRtree.pquery([{44, 45}, {-7, 6}], 1) == {:ok, []}
       assert DynamicRtree.pquery([{44, 45}, {-7, 6}], 2) == {:ok, []}
 
-      DynamicRtree.new(%{type: MerkleMap})
+      DynamicRtree.new(type: MerkleMap)
       assert DynamicRtree.query([{4, 5}, {6, 7}]) == {:ok, []}
       assert DynamicRtree.query([{-60, 0}, {0, 100}]) == {:ok, []}
       assert DynamicRtree.query([{-100, 100}, {-100, 100}]) == {:ok, []}
@@ -317,7 +316,7 @@ defmodule DynamicRtreeTest do
     end
 
     test "MerkleMap update and bulk update works" do
-      DynamicRtree.new(%{type: MerkleMap})
+      DynamicRtree.new(type: MerkleMap)
       {:ok, t} = DynamicRtree.update(0, [{13, 14}, {6, 7}])
       assert t == DynamicRtree.tree()
 

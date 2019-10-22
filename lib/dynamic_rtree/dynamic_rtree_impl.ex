@@ -4,42 +4,34 @@ defmodule DDRT.DynamicRtreeImpl do
   require Logger
   import IO.ANSI
 
-  @moduledoc false
   # Between 1 y 64800. Bigger value => ^ updates speed, ~v query speed.
   @max_area 20000
-
-  @type coord_range :: {number(), number()}
-  @type bounding_box :: list(coord_range())
-  @type id :: number() | String.t()
-  @type leaf :: {id(), bounding_box()}
-
-  @callback delete(ids :: id() | [id()], name :: GenServer.name()) :: {:ok, map()}
-  @callback insert(leaves :: leaf() | [leaf()], name :: GenServer.name()) :: {:ok, map()}
-  @callback metadata(name :: GenServer.name()) :: map()
-  @callback pquery(box :: bounding_box(), depth :: integer(), name :: GenServer.name()) :: [id()]
-  @callback query(box :: bounding_box(), name :: GenServer.name()) :: [id()]
-  @callback update(
-              ids :: id(),
-              box :: bounding_box() | {bounding_box(), bounding_box()},
-              name :: GenServer.name()
-            ) :: {:ok, map()}
-  @callback bulk_update(leaves :: list(leaf()), name :: GenServer.name()) :: {:ok, map()}
-  @callback new(opts :: map(), name :: GenServer.name()) :: {:ok, map()}
-  @callback tree(name :: GenServer.name()) :: map()
 
   defmacro __using__(_) do
     quote do
       alias DDRT.DynamicRtreeImpl
-      @behaviour DynamicRtreeImpl
 
+      @doc false
       defdelegate tree_new(opts), to: DynamicRtreeImpl
+
+      @doc false
       defdelegate tree_insert(tree, leaf), to: DynamicRtreeImpl
+
+      @doc false
       defdelegate tree_query(tree, box), to: DynamicRtreeImpl
+
+      @doc false
       defdelegate tree_query(tree, box, depth), to: DynamicRtreeImpl
+
+      @doc false
       defdelegate tree_delete(tree, id), to: DynamicRtreeImpl
+
+      @doc false
       defdelegate tree_update_leaf(tree, id, update), to: DynamicRtreeImpl
     end
   end
+
+  # PUBLIC METHODS
 
   def tree_new(opts) do
     {f, s} = :rand.seed(:exrop, opts[:seed])
@@ -60,7 +52,6 @@ defmodule DDRT.DynamicRtreeImpl do
     {tree, %{params: opts, seeding: f}}
   end
 
-  # Public Actions
   def tree_insert(rbundle, {id, _box} = leaf) do
     if rbundle.tree |> rbundle[:type].get(id) do
       if rbundle.verbose,

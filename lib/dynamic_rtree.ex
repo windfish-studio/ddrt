@@ -1,7 +1,58 @@
 defmodule DDRT.DynamicRtree do
   use GenServer
-
   use DDRT.DynamicRtreeImpl
+
+  @type tree_init :: [
+          name: GenServer.name(),
+          crdt: module(),
+          mode: ddrt_mode(),
+          conf: tree_config()
+        ]
+
+  @type tree_config :: [
+          name: GenServer.name(),
+          width: integer(),
+          type: module(),
+          verbose: boolean(),
+          seed: integer()
+        ]
+
+  @type ddrt_mode :: :standalone | :distributed
+  @type coord_range :: {number(), number()}
+  @type bounding_box :: list(coord_range())
+  @type id :: number() | String.t()
+  @type leaf :: {id(), bounding_box()}
+
+  @callback delete(ids :: id() | [id()], name :: GenServer.name()) :: {:ok, map()}
+  @callback insert(leaves :: leaf() | [leaf()], name :: GenServer.name()) :: {:ok, map()}
+  @callback metadata(name :: GenServer.name()) :: map()
+  @callback pquery(box :: bounding_box(), depth :: integer(), name :: GenServer.name()) :: [id()]
+  @callback query(box :: bounding_box(), name :: GenServer.name()) :: [id()]
+  @callback update(
+              ids :: id(),
+              box :: bounding_box() | {bounding_box(), bounding_box()},
+              name :: GenServer.name()
+            ) :: {:ok, map()}
+  @callback bulk_update(leaves :: list(leaf()), name :: GenServer.name()) :: {:ok, map()}
+  @callback new(opts :: Keyword.t(), name :: GenServer.name()) :: {:ok, map()}
+  @callback tree(name :: GenServer.name()) :: map()
+
+  defmacro __using__(_) do
+    quote do
+      alias DDRT.DynamicRtree
+      @behaviour DynamicRtree
+
+      defdelegate delete(ids, name), to: DynamicRtree
+      defdelegate insert(leaves, name), to: DynamicRtree
+      defdelegate metadata(name), to: DynamicRtree
+      defdelegate pquery(box, depth, name), to: DynamicRtree
+      defdelegate query(box, name), to: DynamicRtree
+      defdelegate update(ids, box, name), to: DynamicRtree
+      defdelegate bulk_update(leaves, name), to: DynamicRtree
+      defdelegate new(opts, name), to: DynamicRtree
+      defdelegate tree(name), to: DynamicRtree
+    end
+  end
 
   defstruct metadata: nil,
             tree: nil,
@@ -86,25 +137,52 @@ defmodule DDRT.DynamicRtree do
 
   """
 
+  def start_link(opts) do
+    name = if opts[:name], do: opts[:name], else: __MODULE__
+    GenServer.start_link(__MODULE__, opts, name: name)
+  end
+
+  @impl true
+  def init(opts) do
+    opts = Keyword.put_new(opts, :mode, :standalone)
+    conf = filter_conf(opts[:conf])
+    {t, meta} = tree_new(conf)
+    listeners = Node.list()
+
+    t =
+      if %{metadata: meta} |> is_distributed? do
+        DeltaCrdt.set_neighbours(opts[:crdt], Enum.map(Node.list(), fn x -> {opts[:crdt], x} end))
+        # :timer.sleep(10)
+        #
+        crdt_value = DeltaCrdt.read(opts[:crdt])
+        :net_kernel.monitor_nodes(true, node_type: :visible)
+        if crdt_value != %{}, do: reconstruct_from_crdt(crdt_value, t), else: t
+      else
+        t
+      end
+
+    {:ok, %__MODULE__{metadata: meta, tree: t, listeners: listeners, crdt: opts[:crdt]}}
+  end
+
   @opt_values %{
     type: [Map, MerkleMap],
     mode: [:standalone, :distributed]
   }
 
-  @defopts %{
+  @defopts [
     width: 6,
     type: Map,
     mode: :standalone,
     verbose: false,
     seed: 0
-  }
+  ]
 
-  @impl true
-  def new(opts \\ @defopts, name \\ __MODULE__) when is_map(opts) do
+  @spec new(opts :: Keyword.t(), name :: GenServer.name()) :: {:ok, map()}
+  def new(opts \\ @defopts, name \\ __MODULE__) when is_list(opts) do
     GenServer.call(name, {:new, opts})
   end
 
-  @impl true
+  @spec insert(leaves :: leaf() | [leaf()], name :: GenServer.name()) :: {:ok, map()}
   def insert(_a, name \\ __MODULE__)
 
   @doc """
@@ -147,7 +225,6 @@ defmodule DDRT.DynamicRtree do
 
   """
 
-  @impl true
   def insert(leafs, name) when is_list(leafs) do
     GenServer.call(name, {:bulk_insert, leafs}, :infinity)
   end
@@ -168,7 +245,7 @@ defmodule DDRT.DynamicRtree do
 
   """
 
-  @impl true
+  @spec query(box :: bounding_box(), name :: GenServer.name()) :: [id()]
   def query(box, name \\ __MODULE__) do
     GenServer.call(name, {:query, box})
   end
@@ -179,11 +256,12 @@ defmodule DDRT.DynamicRtree do
     Returns `[id's]`.
   """
 
-  @impl true
+  @spec pquery(box :: bounding_box(), depth :: integer(), name :: GenServer.name()) :: [id()]
   def pquery(box, depth, name \\ __MODULE__) do
     GenServer.call(name, {:query_depth, {box, depth}})
   end
 
+  @spec delete(ids :: id() | [id()], name :: GenServer.name()) :: {:ok, map()}
   def delete(_a, name \\ __MODULE__)
 
   @doc """
@@ -205,7 +283,6 @@ defmodule DDRT.DynamicRtree do
       iex> DynamicRtree.delete(["Griffin","Parker"],Peter)
   """
 
-  @impl true
   def delete(ids, name) when is_list(ids) do
     GenServer.call(name, {:bulk_delete, ids}, :infinity)
   end
@@ -233,7 +310,7 @@ defmodule DDRT.DynamicRtree do
       }}
 
   """
-  @impl true
+  @spec bulk_update(leaves :: list(leaf()), name :: GenServer.name()) :: {:ok, map()}
   def bulk_update(updates, name \\ __MODULE__) when is_list(updates) do
     GenServer.call(name, {:bulk_update, updates}, :infinity)
   end
@@ -245,19 +322,25 @@ defmodule DDRT.DynamicRtree do
 
   ## Examples
 
-      iex> DynamicRtree.update({"Griffin",[{0,1},{0,1}]},Peter)
+  iex> DynamicRtree.update({"Griffin",[{0,1},{0,1}]},Peter)
 
-      {:ok,
-      %{
-       43143342109176739 => {["Parker", "Griffin"], nil, [{0, 11}, {0, 11}]},
-       :root => 43143342109176739,
-       :ticket => [19125803434255161 | 82545666616502197],
-       "Griffin" => {:leaf, 43143342109176739, [{0, 1}, {0, 1}]},
-       "Parker" => {:leaf, 43143342109176739, [{10, 11}, {16, 17}]}
-      }}
+  {:ok,
+  %{
+   43143342109176739 => {["Parker", "Griffin"], nil, [{0, 11}, {0, 11}]},
+   :root => 43143342109176739,
+   :ticket => [19125803434255161 | 82545666616502197],
+   "Griffin" => {:leaf, 43143342109176739, [{0, 1}, {0, 1}]},
+   "Parker" => {:leaf, 43143342109176739, [{10, 11}, {16, 17}]}
+  }}
 
   """
-  @impl true
+
+  @spec update(
+          ids :: id(),
+          box :: bounding_box() | {bounding_box(), bounding_box()},
+          name :: GenServer.name()
+        ) :: {:ok, map()}
+
   def update(id, update, name \\ __MODULE__) do
     GenServer.call(name, {:update, {id, update}})
   end
@@ -286,8 +369,9 @@ defmodule DDRT.DynamicRtree do
 
 
   """
+  @spec metadata(name :: GenServer.name()) :: map()
   def metadata(name \\ __MODULE__)
-  @impl true
+
   def metadata(name) do
     GenServer.call(name, :metadata)
   end
@@ -311,8 +395,9 @@ defmodule DDRT.DynamicRtree do
 
 
   """
+  @spec tree(name :: GenServer.name()) :: map()
   def tree(name \\ __MODULE__)
-  @impl true
+
   def tree(name) do
     GenServer.call(name, :tree)
   end
@@ -338,18 +423,22 @@ defmodule DDRT.DynamicRtree do
   end
 
   defp filter_conf(opts) do
-    new_opts = if opts[:mode] == :distributed, do: Map.put(opts, :type, MerkleMap), else: opts
+    new_opts =
+      case opts[:mode] do
+        :distributed -> Keyword.put(opts, :type, MerkleMap)
+        _ -> opts
+      end
 
     good_keys =
       new_opts
-      |> Map.keys()
+      |> Keyword.keys()
       |> Enum.filter(fn k ->
         constraints() |> Map.has_key?(k) and constraints()[k].(new_opts[k])
       end)
 
     good_keys
     |> Enum.reduce(@defopts, fn k, acc ->
-      acc |> Map.put(k, new_opts[k])
+      acc |> Keyword.put(k, new_opts[k])
     end)
   end
 
@@ -364,32 +453,6 @@ defmodule DDRT.DynamicRtree do
       type: params[:type],
       seeding: meta[:seeding]
     }
-  end
-
-  @doc false
-  def start_link(opts) do
-    name = if opts[:name], do: opts[:name], else: __MODULE__
-    GenServer.start_link(__MODULE__, opts, name: name)
-  end
-
-  @impl true
-  def init(opts) do
-    conf = filter_conf(opts[:conf])
-    {t, meta} = tree_new(conf)
-    listeners = Node.list()
-
-    t =
-      if %{metadata: meta} |> is_distributed? do
-        DeltaCrdt.set_neighbours(opts[:crdt], Enum.map(Node.list(), fn x -> {opts[:crdt], x} end))
-        :timer.sleep(10)
-        crdt_value = DeltaCrdt.read(opts[:crdt])
-        :net_kernel.monitor_nodes(true, node_type: :visible)
-        if crdt_value != %{}, do: reconstruct_from_crdt(crdt_value, t), else: t
-      else
-        t
-      end
-
-    {:ok, %__MODULE__{metadata: meta, tree: t, listeners: listeners, crdt: opts[:crdt]}}
   end
 
   @impl true
