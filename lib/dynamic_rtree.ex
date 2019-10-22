@@ -425,6 +425,11 @@ defmodule DDRT.DynamicRtree do
 
   ## PRIVATE METHODS
 
+  defp fully_qualified_name({_name, _node} = fq_pair), do: fq_pair
+  defp fully_qualified_name(name) do 
+    {name, Node.self()}
+  end
+
   defp is_distributed?(state) do
     state.metadata[:params][:mode] == :distributed
   end
@@ -477,11 +482,15 @@ defmodule DDRT.DynamicRtree do
 
   @impl true
   def handle_call({:set_members, members}, _from, state) do
-    self_crdt = Module.concat([state.name, Crdt])
+    self_crdt = 
+      Module.concat([state.name, Crdt])
+      |> fully_qualified_name()
+
     member_crdts = 
       members
-      |> Enum.map(fn(member) -> 
-        Module.concat([member, Crdt])
+      |> Enum.map(&(fully_qualified_name(&1)))
+      |> Enum.map(fn({pname, node}) -> 
+        {Module.concat([pname, Crdt]), node}
       end)
     
     result = DeltaCrdt.set_neighbours(self_crdt, member_crdts)
