@@ -56,7 +56,7 @@ defmodule DDRT.DynamicRtree do
 
       @doc unquote(doc_referral({:metadata, 1}))
       defdelegate metadata(name), to: DynamicRtree
-      
+
       @doc unquote(doc_referral({:pquery, 3}))
       defdelegate pquery(box, depth, name), to: DynamicRtree
 
@@ -184,7 +184,7 @@ defmodule DDRT.DynamicRtree do
     
     ```
     iex> DynamicRtree.insert([{"Griffin", [{4,5},{6,7}]}, {"Parker", [{14,15},{16,17}]}], :my_rtree)
-  
+
     {:ok,
     %{
      43143342109176739 => {["Parker", "Griffin"], nil, [{4, 15}, {6, 17}]},

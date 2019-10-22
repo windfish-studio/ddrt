@@ -7,8 +7,8 @@ defmodule DDRT do
 
   Please refer to `DDRT.DynamicRtree` module documentation for complete function specs and examples for general usage of the core API methods.
   """
-  
-  #DDRT party begins.
+
+  # DDRT party begins.
   @spec start_link(DynamicRtree.tree_config()) :: {:ok, pid}
   @doc "See `DDRT.DynamicRtree.start_link/1` for documentation and configuration parameters"
   def start_link(opts) do
