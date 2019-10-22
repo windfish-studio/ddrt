@@ -104,8 +104,7 @@ defmodule DDRT do
        ]},
       {DynamicRtree,
        [
-         mode: :distributed,
-         conf: opts,
+         conf: Keyword.put_new(opts, :mode, :distributed),
          crdt: Module.concat([name, Crdt]),
          name: name
        ]}

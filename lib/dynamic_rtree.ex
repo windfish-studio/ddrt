@@ -5,7 +5,6 @@ defmodule DDRT.DynamicRtree do
   @type tree_init :: [
           name: GenServer.name(),
           crdt: module(),
-          mode: ddrt_mode(),
           conf: tree_config()
         ]
 
@@ -14,7 +13,8 @@ defmodule DDRT.DynamicRtree do
           width: integer(),
           type: module(),
           verbose: boolean(),
-          seed: integer()
+          seed: integer(),
+          mode: ddrt_mode()
         ]
 
   @type ddrt_mode :: :standalone | :distributed
@@ -22,6 +22,7 @@ defmodule DDRT.DynamicRtree do
   @type bounding_box :: list(coord_range())
   @type id :: number() | String.t()
   @type leaf :: {id(), bounding_box()}
+  @type member :: GenServer.name() | {GenServer.name(),node()}
 
   @callback delete(ids :: id() | [id()], name :: GenServer.name()) :: {:ok, map()}
   @callback insert(leaves :: leaf() | [leaf()], name :: GenServer.name()) :: {:ok, map()}
@@ -36,6 +37,7 @@ defmodule DDRT.DynamicRtree do
   @callback bulk_update(leaves :: list(leaf()), name :: GenServer.name()) :: {:ok, map()}
   @callback new(opts :: Keyword.t(), name :: GenServer.name()) :: {:ok, map()}
   @callback tree(name :: GenServer.name()) :: map()
+  @callback set_members(name :: GenServer.name(), [member()]) :: :ok
 
   defmacro __using__(_) do
     quote do
@@ -51,13 +53,15 @@ defmodule DDRT.DynamicRtree do
       defdelegate bulk_update(leaves, name), to: DynamicRtree
       defdelegate new(opts, name), to: DynamicRtree
       defdelegate tree(name), to: DynamicRtree
+      defdelegate set_members(name, members), to: DynamicRtree
     end
   end
 
   defstruct metadata: nil,
             tree: nil,
             listeners: [],
-            crdt: nil
+            crdt: nil,
+            name: nil
 
   @moduledoc """
   This is the API module of the elixir r-tree implementation where you can do the basic actions.
@@ -138,13 +142,12 @@ defmodule DDRT.DynamicRtree do
   """
 
   def start_link(opts) do
-    name = if opts[:name], do: opts[:name], else: __MODULE__
+    name = Keyword.get(opts, :name, __MODULE__)
     GenServer.start_link(__MODULE__, opts, name: name)
   end
 
   @impl true
   def init(opts) do
-    opts = Keyword.put_new(opts, :mode, :standalone)
     conf = filter_conf(opts[:conf])
     {t, meta} = tree_new(conf)
     listeners = Node.list()
@@ -152,8 +155,7 @@ defmodule DDRT.DynamicRtree do
     t =
       if %{metadata: meta} |> is_distributed? do
         DeltaCrdt.set_neighbours(opts[:crdt], Enum.map(Node.list(), fn x -> {opts[:crdt], x} end))
-        # :timer.sleep(10)
-        #
+
         crdt_value = DeltaCrdt.read(opts[:crdt])
         :net_kernel.monitor_nodes(true, node_type: :visible)
         if crdt_value != %{}, do: reconstruct_from_crdt(crdt_value, t), else: t
@@ -161,7 +163,13 @@ defmodule DDRT.DynamicRtree do
         t
       end
 
-    {:ok, %__MODULE__{metadata: meta, tree: t, listeners: listeners, crdt: opts[:crdt]}}
+    {:ok, %__MODULE__{
+      name: opts[:name], 
+      metadata: meta, 
+      tree: t, 
+      listeners: listeners, 
+      crdt: opts[:crdt]
+    }}
   end
 
   @opt_values %{
@@ -402,11 +410,20 @@ defmodule DDRT.DynamicRtree do
     GenServer.call(name, :tree)
   end
 
+  
+  @spec set_members(name :: GenServer.name(), [member()]) :: :ok
+  def set_members(name, members) do 
+    :ok = GenServer.call(name, {:set_members, members})
+    :ok
+  end
+
   def merge_diffs(_a, name \\ __MODULE__)
   @doc false
   def merge_diffs(diffs, name) do
     send(name, {:merge_diff, diffs})
   end
+
+  ## PRIVATE METHODS
 
   defp is_distributed?(state) do
     state.metadata[:params][:mode] == :distributed
@@ -423,6 +440,9 @@ defmodule DDRT.DynamicRtree do
   end
 
   defp filter_conf(opts) do
+    # set default :mode to :standalone
+    opts = Keyword.put_new(opts, :mode, :standalone)
+
     new_opts =
       case opts[:mode] do
         :distributed -> Keyword.put(opts, :type, MerkleMap)
@@ -453,6 +473,19 @@ defmodule DDRT.DynamicRtree do
       type: params[:type],
       seeding: meta[:seeding]
     }
+  end
+
+  @impl true
+  def handle_call({:set_members, members}, _from, state) do
+    self_crdt = Module.concat([state.name, Crdt])
+    member_crdts = 
+      members
+      |> Enum.map(fn(member) -> 
+        Module.concat([member, Crdt])
+      end)
+    
+    result = DeltaCrdt.set_neighbours(self_crdt, member_crdts)
+    {:reply, result, state}
   end
 
   @impl true

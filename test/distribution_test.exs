@@ -3,37 +3,33 @@ defmodule DynamicRtreeTest.Distribution do
   alias DDRT.DynamicRtree
 
   setup_all do
-    children = [
-      {DeltaCrdt,
-       [crdt: DeltaCrdt.AWLWWMap, name: CrdtA, on_diffs: &DDRT.on_diffs(&1, DynamicRtree, A)]},
-      {DynamicRtree, [conf: [mode: :distributed], name: A, crdt: CrdtA]}
-    ]
+    {:ok, ddrt_a} = DDRT.start_link([name: A])
+    {:ok, ddrt_b} = DDRT.start_link([name: B])
 
-    Supervisor.start_link(children, strategy: :one_for_one, name: A.Supervisor)
+    DDRT.set_members(B, [A])
+    DDRT.set_members(A, [B])
 
-    children = [
-      {DeltaCrdt,
-       [crdt: DeltaCrdt.AWLWWMap, name: CrdtB, on_diffs: &DDRT.on_diffs(&1, DynamicRtree, B)]},
-      {DynamicRtree, [conf: [mode: :distributed], name: B, crdt: CrdtB]}
-    ]
+    on_exit(fn() -> 
+      Process.unlink(ddrt_a)
+      Process.unlink(ddrt_b)
 
-    Supervisor.start_link(children, strategy: :one_for_one, name: B.Supervisor)
+      Process.exit(ddrt_a, :shutdown)
+      Process.exit(ddrt_b, :shutdown)
+    end)
 
-    DeltaCrdt.set_neighbours(CrdtB, [CrdtA])
-    DeltaCrdt.set_neighbours(CrdtA, [CrdtB])
-    {:ok, %{}}
+    :ok
   end
 
   describe "[DynamicRtree distributed]" do
     test "tree insert/update/delete sync" do
-      DynamicRtree.insert({0, [{4, 5}, {6, 7}]}, A)
       empty_tree = DynamicRtree.tree(B)
-      Process.sleep(1000)
+      DynamicRtree.insert({0, [{4, 5}, {6, 7}]}, A)
+      Process.sleep(200)
       refute DynamicRtree.tree(B) == empty_tree
-      assert DeltaCrdt.read(CrdtA) == DeltaCrdt.read(CrdtB)
+      assert DeltaCrdt.read(A.Crdt) == DeltaCrdt.read(B.Crdt)
       assert DynamicRtree.tree(A) == DynamicRtree.tree(B)
 
-      assert DeltaCrdt.read(CrdtA) |> DynamicRtree.reconstruct_from_crdt(empty_tree) ==
+      assert DeltaCrdt.read(A.Crdt) |> DynamicRtree.reconstruct_from_crdt(empty_tree) ==
                DynamicRtree.tree(A)
 
       DynamicRtree.insert(
@@ -49,14 +45,14 @@ defmodule DynamicRtreeTest.Distribution do
       )
 
       refute DynamicRtree.tree(A) == DynamicRtree.tree(B)
-      Process.sleep(1000)
+      Process.sleep(200)
       assert DynamicRtree.tree(A) == DynamicRtree.tree(B)
 
       DynamicRtree.update(0, [{10, 11}, {16, 17}], A)
       old_tree = DynamicRtree.tree(B)
-      Process.sleep(1000)
+      Process.sleep(200)
       refute DynamicRtree.tree(B) == old_tree
-      assert DeltaCrdt.read(CrdtA) == DeltaCrdt.read(CrdtB)
+      assert DeltaCrdt.read(A.Crdt) == DeltaCrdt.read(B.Crdt)
       assert DynamicRtree.tree(A) == DynamicRtree.tree(B)
 
       DynamicRtree.bulk_update(
@@ -72,19 +68,19 @@ defmodule DynamicRtreeTest.Distribution do
       )
 
       refute DynamicRtree.tree(A) == DynamicRtree.tree(B)
-      Process.sleep(1000)
+      Process.sleep(200)
       assert DynamicRtree.tree(A) == DynamicRtree.tree(B)
 
       DynamicRtree.delete(0, A)
       old_tree = DynamicRtree.tree(B)
-      Process.sleep(1000)
+      Process.sleep(200)
       refute DynamicRtree.tree(B) == old_tree
-      assert DeltaCrdt.read(CrdtA) == DeltaCrdt.read(CrdtB)
+      assert DeltaCrdt.read(A.Crdt) == DeltaCrdt.read(B.Crdt)
       assert DynamicRtree.tree(A) == DynamicRtree.tree(B)
 
       DynamicRtree.delete([1, 2, 3, 4, 5, 6], B)
       refute DynamicRtree.tree(A) == DynamicRtree.tree(B)
-      Process.sleep(1000)
+      Process.sleep(200)
       assert DynamicRtree.tree(A) == DynamicRtree.tree(B)
 
       send(A, {:nodeup, [], []})
