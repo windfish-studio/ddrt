@@ -11,9 +11,9 @@ generate = fn n,s ->
   BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {UUID.uuid1(),x} end)
 end
 
-new_tree = fn leafs,typ ->
+new_tree = fn leaves,typ ->
   DynamicRtree.new(%{type: typ})
-  DynamicRtree.insert(leafs)
+  DynamicRtree.insert(leaves)
 end
 
 unit_move = fn ->
@@ -58,6 +58,6 @@ Benchee.run(%{
     end},
 
 }, inputs: %{
-    cyan() <>"all leafs of tree ["<> color(195) <>"1000" <> cyan() <> "]" <> reset() => generate.(1000,1),
-    cyan() <>"all leafs of tree ["<> color(195) <>"100000" <> cyan() <> "]" <> reset() => generate.(100000,1)
+    cyan() <>"all leaves of tree ["<> color(195) <>"1000" <> cyan() <> "]" <> reset() => generate.(1000,1),
+    cyan() <>"all leaves of tree ["<> color(195) <>"100000" <> cyan() <> "]" <> reset() => generate.(100000,1)
    }, time: 10)

@@ -2,7 +2,8 @@
 [![LICENSE](https://img.shields.io/hexpm/l/dynamic_rtree)](https://rawcdn.githack.com/windfish-studio/rtree/1479e8660336fb0a63fc6a39185c10e1ab940d7b/LICENSE)
 [![VERSION](https://img.shields.io/hexpm/v/dynamic_rtree)](https://hexdocs.pm/dynamic_rtree/api-reference.html)
 
-# :ddrt
+# :ddrt (README)
+
 A __D__ynamic, __D__istributed [__R__-__T__ree](https://en.wikipedia.org/wiki/R-tree) (DDRT) library written in Elixir. The 'dynamic' part of the title refers to the fact that this implementation is optimized for a high volume of update operations. Put another way, this is an R-tree best suited for use with spatial data _in constant movement_. The 'distributed' part refers to the fact that this library is designed to maintain a spatial index (rtree) across a cluster of distributed elixir nodes. 
 
 The library uses [@derekkraan](https://github.com/derekkraan)'s [MerkleMap](https://github.com/derekkraan/merkle_map) and [CRDT](https://github.com/derekkraan/delta_crdt_ex) implementations to ensure reliable, "eventually consistent" distributed behavior.
@@ -231,10 +232,10 @@ warmup: 2 s
 time: 5 s
 memory time: 0 ns
 parallel: 1
-inputs: delete all leafs of tree [1000]
+inputs: delete all leaves of tree [1000]
 Estimated total run time: 28 s
 
-##### With input delete all leafs of tree [1000] #####
+##### With input delete all leaves of tree [1000] #####
 Name                       ips        average  deviation         median         99th %
 map bulk                175.20        5.71 ms     ±9.18%        5.60 ms        9.47 ms
 merklemap bulk           80.27       12.46 ms    ±21.27%       11.74 ms       25.37 ms
@@ -255,10 +256,10 @@ warmup: 2 s
 time: 10 s
 memory time: 0 ns
 parallel: 1
-inputs: all leafs of tree [1000], all leafs of tree [100000]
+inputs: all leaves of tree [1000], all leaves of tree [100000]
 Estimated total run time: 48 s
 
-##### With input all leafs of tree [1000] #####
+##### With input all leaves of tree [1000] #####
 Name                ips        average  deviation         median         99th %
 map              133.88        7.47 ms    ±22.82%        6.92 ms       14.83 ms
 merklemap         65.74       15.21 ms    ±21.93%       14.18 ms       26.42 ms
@@ -267,7 +268,7 @@ Comparison:
 map              133.88
 merklemap         65.74 - 2.04x slower +7.74 ms
 
-##### With input all leafs of tree [100000] #####
+##### With input all leaves of tree [100000] #####
 Name                ips        average  deviation         median         99th %
 map                0.68         1.46 s    ±15.84%         1.47 s         1.82 s
 merklemap          0.33         3.01 s     ±8.23%         3.09 s         3.21 s
@@ -332,10 +333,10 @@ warmup: 2 s
 time: 5 s
 memory time: 0 ns
 parallel: 1
-inputs: 1000 leafs
+inputs: 1000 leaves
 Estimated total run time: 28 s
 
-##### With input 1000 leafs #####
+##### With input 1000 leaves #####
 Name                       ips        average  deviation         median         99th %
 map bulk                305.53        3.27 ms    ±39.39%        2.79 ms        7.96 ms
 merklemap bulk          190.61        5.25 ms    ±62.06%        4.37 ms       17.65 ms

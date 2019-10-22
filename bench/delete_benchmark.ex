@@ -51,7 +51,7 @@ Benchee.run(%{
     end},
 
 }, inputs: %{
-    cyan() <>"delete all leafs of tree ["<> color(195) <>"1000" <> cyan() <> "]" <> reset() => generate.(1000,1),
-    #cyan() <>"all leafs of tree ["<> color(195) <>"100000" <> cyan() <> "]" <> reset() => generate.(100000,1)
+    cyan() <>"delete all leaves of tree ["<> color(195) <>"1000" <> cyan() <> "]" <> reset() => generate.(1000,1),
+    #cyan() <>"all leaves of tree ["<> color(195) <>"100000" <> cyan() <> "]" <> reset() => generate.(100000,1)
   }
 )

@@ -10,7 +10,11 @@ defmodule DynamicRtree.MixProject do
       deps: deps(),
       source_url: "https://github.com/windfish-studio/dynamic-rtree",
       description: description(),
-      package: package()
+      package: package(),
+      docs: [
+        main: "readme",
+        extras: ["README.md"]
+      ]
     ]
   end
 
@@ -47,7 +51,7 @@ defmodule DynamicRtree.MixProject do
 
     It's mainly a R-tree.
 
-    Why dynamic? Because it's optimized to do fast updates at the tree leafs spatial index.
+    Why dynamic? Because it's optimized to do fast updates at the tree leaves spatial index.
 
     Why distributed? Well.. you can run the DDRT on different nodes and they will have the same r-tree data.
     "

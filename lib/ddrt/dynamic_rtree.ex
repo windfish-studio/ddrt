@@ -64,81 +64,7 @@ defmodule DDRT.DynamicRtree do
             name: nil
 
   @moduledoc """
-  This is the API module of the elixir r-tree implementation where you can do the basic actions.
-
-  ## Easy to use:
-
-    Starts a local r-tree named as Peter
-      iex> DDRT.start_link(%{name: Peter})
-      {:ok, #PID<0.214.0>}
-
-    Insert "Griffin" on r-tree named as Peter
-      iex> DynamicRtree.insert({"Griffin",[{4,5},{6,7}]},Peter)
-      {:ok,
-      %{
-       43143342109176739 => {["Griffin"], nil, [{4, 5}, {6, 7}]},
-       :root => 43143342109176739,
-       :ticket => [19125803434255161 | 82545666616502197],
-       "Griffin" => {:leaf, 43143342109176739, [{4, 5}, {6, 7}]}
-      }}
-
-
-    Insert "Parker" on r-tree named as Peter
-      iex> DynamicRtree.insert({"Parker",[{10,11},{16,17}]},Peter)
-      {:ok,
-      %{
-       43143342109176739 => {["Parker", "Griffin"], nil, [{4, 11}, {6, 17}]},
-       :root => 43143342109176739,
-       :ticket => [19125803434255161 | 82545666616502197],
-       "Griffin" => {:leaf, 43143342109176739, [{4, 5}, {6, 7}]},
-       "Parker" => {:leaf, 43143342109176739, [{10, 11}, {16, 17}]}
-      }}
-
-
-    Query which leafs at Peter r-tree overlap with box `[{0,7},{4,8}]`
-      iex> DynamicRtree.query([{0,7},{4,8}],Peter)
-      {:ok, ["Griffin"]}
-
-    Updates "Griffin" bounding box
-      iex> DynamicRtree.update("Griffin",[{-6,-5},{11,12}],Peter)
-      {:ok,
-      %{
-       43143342109176739 => {["Parker", "Griffin"], nil, [{-6, 11}, {6, 17}]},
-       :root => 43143342109176739,
-       :ticket => [19125803434255161 | 82545666616502197],
-       "Griffin" => {:leaf, 43143342109176739, [{-6, -5}, {11, 12}]},
-       "Parker" => {:leaf, 43143342109176739, [{10, 11}, {16, 17}]}
-      }}
-
-    Repeat again the last query
-      iex> DynamicRtree.query([{0,7},{4,8}],Peter)
-      {:ok, []} # Peter "Griffin" left the query bounding box
-
-    Let's punish them
-      iex> DynamicRtree.delete(["Griffin","Parker"],Peter)
-      {:ok,
-      %{
-       43143342109176739 => {[], nil, [{0, 0}, {0, 0}]},
-       :root => 43143342109176739,
-       :ticket => [19125803434255161 | 82545666616502197]
-      }}
-
-  ## Easy concepts:
-
-    Bounding box format.
-
-    `[{x_min,x_max},{y_min,y_max}]`
-
-              Example:                               & & & & & y_max & & & & &
-                A unit at pos x: 10, y: -12 ,        &                       &
-                with x_size: 1 and y_size: 2         &                       &
-                would be represented with            &          pos          &
-                the following bounding box         x_min       (x,y)       x_max
-                [{9.5,10.5},{-13,-11}]               &                       &
-                                                     &                       &
-                                                     &                       &
-                                                     & & & & & y_min & & & & &
-
+  Use this module if you're interested in creating an R-Tree optimized to run on a single machine. If you'd instead like to run a distributed R-Tree on a cluster of Elixir nodes, use the `DDRT` module.
   """
 
   def start_link(opts) do
@@ -195,13 +121,13 @@ defmodule DDRT.DynamicRtree do
   def insert(_a, name \\ DDRT)
 
   @doc """
-    Insert `leafs` at the r-tree named as `name`
+    Insert `leaves` at the r-tree named as `name`
 
     Returns `{:ok,map()}`
 
   ## Parameters
 
-    - `leafs`: the data to insert.
+    - `leaves`: the data to insert.
     - `name`: the r-tree name where you wanna insert.
 
   ## Examples
@@ -234,8 +160,8 @@ defmodule DDRT.DynamicRtree do
 
   """
 
-  def insert(leafs, name) when is_list(leafs) do
-    GenServer.call(name, {:bulk_insert, leafs}, :infinity)
+  def insert(leaves, name) when is_list(leaves) do
+    GenServer.call(name, {:bulk_insert, leaves}, :infinity)
   end
 
   def insert(leaf, name) do
@@ -274,7 +200,7 @@ defmodule DDRT.DynamicRtree do
   def delete(_a, name \\ DDRT)
 
   @doc """
-  Delete the leafs with the given `ids`.
+  Delete the leaves with the given `ids`.
 
   Returns `{:ok,map()}`
 
@@ -301,7 +227,7 @@ defmodule DDRT.DynamicRtree do
   end
 
   @doc """
-  Update a bunch of r-tree leafs to the new bounding boxes defined.
+  Update a bunch of r-tree leaves to the new bounding boxes defined.
 
   Returns `{:ok,map()}`
 
@@ -523,7 +449,7 @@ defmodule DDRT.DynamicRtree do
   end
 
   @impl true
-  def handle_call({:bulk_insert, leafs}, _from, state) do
+  def handle_call({:bulk_insert, leaves}, _from, state) do
     r =
       {_atom, t} =
       case state.tree do
@@ -532,7 +458,7 @@ defmodule DDRT.DynamicRtree do
 
         _ ->
           final_rbundle =
-            leafs
+            leaves
             |> Enum.reduce(get_rbundle(state), fn l, acc ->
               %{acc | tree: acc |> tree_insert(l)}
             end)

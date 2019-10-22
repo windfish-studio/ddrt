@@ -10,9 +10,9 @@ generate = fn n,s ->
   BoundingBoxGenerator.generate(n,s,[]) |> Enum.map(fn x -> {:os.system_time(:nanosecond),x} end)
 end
 
-new_tree = fn leafs,typ ->
+new_tree = fn leaves,typ ->
   DynamicRtree.new(%{type: typ})
-  generate.(leafs,1)
+  generate.(leaves,1)
   |> Enum.each(fn l ->
     DynamicRtree.insert(l)
   end)
@@ -64,8 +64,8 @@ Benchee.run(%{
     end}
 
 },  inputs: %{
-          yellow() <> "1000 " <> green() <>"leafs" <> reset() => generate.(1000,1),
-          #yellow() <> "1000000 " <> green() <>"leafs" <> reset() => generate.(1000000,1)
+          yellow() <> "1000 " <> green() <>"leaves" <> reset() => generate.(1000,1),
+          #yellow() <> "1000000 " <> green() <>"leaves" <> reset() => generate.(1000000,1)
 }, time: 5)
 
 

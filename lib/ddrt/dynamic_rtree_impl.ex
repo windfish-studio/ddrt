@@ -107,7 +107,7 @@ defmodule DDRT.DynamicRtreeImpl do
 
   def tree_query(rbundle, box) do
     t1 = :os.system_time(:microsecond)
-    r = find_match_leafs(rbundle, box, [get_root(rbundle)], [], [])
+    r = find_match_leaves(rbundle, box, [get_root(rbundle)], [], [])
     t2 = :os.system_time(:microsecond)
 
     if rbundle.verbose,
@@ -379,28 +379,28 @@ defmodule DDRT.DynamicRtreeImpl do
 
   ## Query
 
-  defp find_match_leafs(rbundle, box, dig, leafs, flood) do
+  defp find_match_leaves(rbundle, box, dig, leaves, flood) do
     f = hd(dig)
     tail = if length(dig) > 1, do: tl(dig), else: []
     {content, _dad, fbox} = rbundle.tree |> rbundle[:type].get(f)
 
-    {new_dig, new_leafs, new_flood} =
+    {new_dig, new_leaves, new_flood} =
       if Utils.overlap?(fbox, box) do
         if is_atom(content) do
-          {tail, [f] ++ leafs, flood}
+          {tail, [f] ++ leaves, flood}
         else
           if Utils.contained?(box, fbox),
-            do: {tail, leafs, [f] ++ flood},
-            else: {content ++ tail, leafs, flood}
+            do: {tail, leaves, [f] ++ flood},
+            else: {content ++ tail, leaves, flood}
         end
       else
-        {tail, leafs, flood}
+        {tail, leaves, flood}
       end
 
     if length(new_dig) > 0 do
-      find_match_leafs(rbundle, box, new_dig, new_leafs, new_flood)
+      find_match_leaves(rbundle, box, new_dig, new_leaves, new_flood)
     else
-      new_leafs ++ explore_flood(rbundle, new_flood)
+      new_leaves ++ explore_flood(rbundle, new_flood)
     end
   end
 
@@ -417,26 +417,26 @@ defmodule DDRT.DynamicRtreeImpl do
     if length(next_floor) > 0, do: explore_flood(rbundle, next_floor), else: flood
   end
 
-  defp find_match_depth(rbundle, box, dig, leafs, depth) do
+  defp find_match_depth(rbundle, box, dig, leaves, depth) do
     {f, cdepth} = hd(dig)
     tail = if length(dig) > 1, do: tl(dig), else: []
     {content, _dad, fbox} = rbundle.tree |> rbundle[:type].get(f)
 
-    {new_dig, new_leafs} =
+    {new_dig, new_leaves} =
       if Utils.overlap?(fbox, box) do
         if cdepth < depth and is_list(content) do
           childs = content |> Enum.map(fn c -> {c, cdepth + 1} end)
-          {childs ++ tail, leafs}
+          {childs ++ tail, leaves}
         else
-          {tail, [f] ++ leafs}
+          {tail, [f] ++ leaves}
         end
       else
-        {tail, leafs}
+        {tail, leaves}
       end
 
     if length(new_dig) > 0,
-      do: find_match_depth(rbundle, box, new_dig, new_leafs, depth),
-      else: new_leafs
+      do: find_match_depth(rbundle, box, new_dig, new_leaves, depth),
+      else: new_leaves
   end
 
   ## Delete
