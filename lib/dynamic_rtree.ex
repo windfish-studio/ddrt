@@ -22,7 +22,7 @@ defmodule DDRT.DynamicRtree do
   @type bounding_box :: list(coord_range())
   @type id :: number() | String.t()
   @type leaf :: {id(), bounding_box()}
-  @type member :: GenServer.name() | {GenServer.name(),node()}
+  @type member :: GenServer.name() | {GenServer.name(), node()}
 
   @callback delete(ids :: id() | [id()], name :: GenServer.name()) :: {:ok, map()}
   @callback insert(leaves :: leaf() | [leaf()], name :: GenServer.name()) :: {:ok, map()}
@@ -163,13 +163,14 @@ defmodule DDRT.DynamicRtree do
         t
       end
 
-    {:ok, %__MODULE__{
-      name: opts[:name], 
-      metadata: meta, 
-      tree: t, 
-      listeners: listeners, 
-      crdt: opts[:crdt]
-    }}
+    {:ok,
+     %__MODULE__{
+       name: opts[:name],
+       metadata: meta,
+       tree: t,
+       listeners: listeners,
+       crdt: opts[:crdt]
+     }}
   end
 
   @opt_values %{
@@ -410,9 +411,8 @@ defmodule DDRT.DynamicRtree do
     GenServer.call(name, :tree)
   end
 
-  
   @spec set_members(name :: GenServer.name(), [member()]) :: :ok
-  def set_members(name, members) do 
+  def set_members(name, members) do
     :ok = GenServer.call(name, {:set_members, members})
     :ok
   end
@@ -426,7 +426,8 @@ defmodule DDRT.DynamicRtree do
   ## PRIVATE METHODS
 
   defp fully_qualified_name({_name, _node} = fq_pair), do: fq_pair
-  defp fully_qualified_name(name) do 
+
+  defp fully_qualified_name(name) do
     {name, Node.self()}
   end
 
@@ -482,17 +483,17 @@ defmodule DDRT.DynamicRtree do
 
   @impl true
   def handle_call({:set_members, members}, _from, state) do
-    self_crdt = 
+    self_crdt =
       Module.concat([state.name, Crdt])
       |> fully_qualified_name()
 
-    member_crdts = 
+    member_crdts =
       members
-      |> Enum.map(&(fully_qualified_name(&1)))
-      |> Enum.map(fn({pname, node}) -> 
+      |> Enum.map(&fully_qualified_name(&1))
+      |> Enum.map(fn {pname, node} ->
         {Module.concat([pname, Crdt]), node}
       end)
-    
+
     result = DeltaCrdt.set_neighbours(self_crdt, member_crdts)
     {:reply, result, state}
   end

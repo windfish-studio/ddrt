@@ -3,13 +3,13 @@ defmodule DynamicRtreeTest.Distribution do
   alias DDRT.DynamicRtree
 
   setup_all do
-    {:ok, ddrt_a} = DDRT.start_link([name: A])
-    {:ok, ddrt_b} = DDRT.start_link([name: B])
+    {:ok, ddrt_a} = DDRT.start_link(name: A)
+    {:ok, ddrt_b} = DDRT.start_link(name: B)
 
     DDRT.set_members(B, [A])
     DDRT.set_members(A, [B])
 
-    on_exit(fn() -> 
+    on_exit(fn ->
       Process.unlink(ddrt_a)
       Process.unlink(ddrt_b)
 
