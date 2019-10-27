@@ -1,6 +1,6 @@
 [![CircleCI](https://circleci.com/gh/windfish-studio/ddrt.svg?style=svg)](https://circleci.com/gh/windfish-studio/ddrt)
-[![LICENSE](https://img.shields.io/hexpm/l/dynamic_rtree)](https://rawcdn.githack.com/windfish-studio/rtree/1479e8660336fb0a63fc6a39185c10e1ab940d7b/LICENSE)
-[![VERSION](https://img.shields.io/hexpm/v/dynamic_rtree)](https://hexdocs.pm/dynamic_rtree/api-reference.html)
+[![LICENSE](https://img.shields.io/hexpm/l/ddrt)](https://rawcdn.githack.com/windfish-studio/rtree/1479e8660336fb0a63fc6a39185c10e1ab940d7b/LICENSE)
+[![VERSION](https://img.shields.io/hexpm/v/ddrt)](https://hexdocs.pm/ddrt/api-reference.html)
 
 # :ddrt (README)
 
@@ -8,13 +8,13 @@ A Dynamic, Distributed [R-Tree](https://en.wikipedia.org/wiki/R-tree) (__DDRT__)
 
 The library uses [@derekkraan](https://github.com/derekkraan)'s [MerkleMap](https://github.com/derekkraan/merkle_map) and [CRDT](https://github.com/derekkraan/delta_crdt_ex) implementations to ensure reliable, "eventually consistent" distributed behavior.
 
-The complete documentation is [available on hexdocs](https://hexdocs.pm/dynamic_rtree). You can find the hex package [here](https://hex.pm/packages/dynamic_rtree).
+The complete documentation is [available on hexdocs](https://hexdocs.pm/ddrt). You can find the hex package [here](https://hex.pm/packages/ddrt).
 
 # Getting Started
 ## Installation
 
 The package can be installed
-by adding `dynamic_rtree` to your list of dependencies in `mix.exs`:
+by adding `ddrt` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
