@@ -4,11 +4,11 @@ defmodule DynamicRtree.MixProject do
   def project do
     [
       app: :ddrt,
-      version: "0.2.0",
+      version: "0.2.1",
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      source_url: "https://github.com/windfish-studio/dynamic-rtree",
+      source_url: "https://github.com/windfish-studio/ddrt",
       description: description(),
       package: package(),
       docs: [
@@ -42,7 +42,7 @@ defmodule DynamicRtree.MixProject do
   defp package() do
     [
       licenses: ["GPL 3.0"],
-      links: %{"GitHub" => "https://github.com/windfish-studio/dynamic-rtree"}
+      links: %{"GitHub" => "https://github.com/windfish-studio/ddrt"}
     ]
   end
 
