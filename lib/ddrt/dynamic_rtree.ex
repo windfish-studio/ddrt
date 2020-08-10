@@ -27,8 +27,9 @@ defmodule DDRT.DynamicRtree do
   @callback delete(ids :: id() | [id()], name :: GenServer.name()) :: {:ok, map()}
   @callback insert(leaves :: leaf() | [leaf()], name :: GenServer.name()) :: {:ok, map()}
   @callback metadata(name :: GenServer.name()) :: map()
-  @callback pquery(box :: bounding_box(), depth :: integer(), name :: GenServer.name()) :: [id()]
-  @callback query(box :: bounding_box(), name :: GenServer.name()) :: [id()]
+  @callback pquery(box :: bounding_box(), depth :: integer(), name :: GenServer.name()) ::
+              {:ok, [id()]}
+  @callback query(box :: bounding_box(), name :: GenServer.name()) :: {:ok, [id()]}
   @callback update(
               ids :: id(),
               box :: bounding_box() | {bounding_box(), bounding_box()},
@@ -217,7 +218,7 @@ defmodule DDRT.DynamicRtree do
 
   """
 
-  @spec query(box :: bounding_box(), name :: GenServer.name()) :: [id()]
+  @spec query(box :: bounding_box(), name :: GenServer.name()) :: {:ok, [id()]}
   def query(box, name \\ DDRT) do
     GenServer.call(name, {:query, box})
   end
@@ -228,7 +229,8 @@ defmodule DDRT.DynamicRtree do
     Returns `[id's]`.
   """
 
-  @spec pquery(box :: bounding_box(), depth :: integer(), name :: GenServer.name()) :: [id()]
+  @spec pquery(box :: bounding_box(), depth :: integer(), name :: GenServer.name()) ::
+          {:ok, [id()]}
   def pquery(box, depth, name \\ DDRT) do
     GenServer.call(name, {:query_depth, {box, depth}})
   end
