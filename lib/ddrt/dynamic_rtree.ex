@@ -24,18 +24,22 @@ defmodule DDRT.DynamicRtree do
   @type leaf :: {id(), bounding_box()}
   @type member :: GenServer.name() | {GenServer.name(), node()}
 
-  @callback delete(ids :: id() | [id()], name :: GenServer.name()) :: {:ok, map()}
-  @callback insert(leaves :: leaf() | [leaf()], name :: GenServer.name()) :: {:ok, map()}
+  @callback delete(ids :: id() | [id()], name :: GenServer.name()) ::
+              {:ok, map()} | {:badtree, map()}
+  @callback insert(leaves :: leaf() | [leaf()], name :: GenServer.name()) ::
+              {:ok, map()} | {:badtree, map()}
   @callback metadata(name :: GenServer.name()) :: map()
   @callback pquery(box :: bounding_box(), depth :: integer(), name :: GenServer.name()) ::
-              {:ok, [id()]}
-  @callback query(box :: bounding_box(), name :: GenServer.name()) :: {:ok, [id()]}
+              {:ok, [id()]} | {:badtree, map()}
+  @callback query(box :: bounding_box(), name :: GenServer.name()) ::
+              {:ok, [id()]} | {:badtree, map()}
   @callback update(
               ids :: id(),
               box :: bounding_box() | {bounding_box(), bounding_box()},
               name :: GenServer.name()
-            ) :: {:ok, map()}
-  @callback bulk_update(leaves :: list(leaf()), name :: GenServer.name()) :: {:ok, map()}
+            ) :: {:ok, map()} | {:badtree, map()}
+  @callback bulk_update(leaves :: [leaf()], name :: GenServer.name()) ::
+              {:ok, map()} | {:badtree, map()}
   @callback new(opts :: Keyword.t(), name :: GenServer.name()) :: {:ok, map()}
   @callback tree(name :: GenServer.name()) :: map()
   @callback set_members(name :: GenServer.name(), [member()]) :: :ok
@@ -151,7 +155,8 @@ defmodule DDRT.DynamicRtree do
     GenServer.call(name, {:new, opts})
   end
 
-  @spec insert(leaves :: leaf() | [leaf()], name :: GenServer.name()) :: {:ok, map()}
+  @spec insert(leaves :: leaf() | [leaf()], name :: GenServer.name()) ::
+          {:ok, map()} | {:badtree, map()}
   def insert(_a, name \\ DDRT)
 
   @doc """
@@ -218,7 +223,8 @@ defmodule DDRT.DynamicRtree do
 
   """
 
-  @spec query(box :: bounding_box(), name :: GenServer.name()) :: {:ok, [id()]}
+  @spec query(box :: bounding_box(), name :: GenServer.name()) ::
+          {:ok, [id()]} | {:badtree, map()}
   def query(box, name \\ DDRT) do
     GenServer.call(name, {:query, box})
   end
@@ -230,12 +236,13 @@ defmodule DDRT.DynamicRtree do
   """
 
   @spec pquery(box :: bounding_box(), depth :: integer(), name :: GenServer.name()) ::
-          {:ok, [id()]}
+          {:ok, [id()]} | {:badtree, map()}
   def pquery(box, depth, name \\ DDRT) do
     GenServer.call(name, {:query_depth, {box, depth}})
   end
 
-  @spec delete(ids :: id() | [id()], name :: GenServer.name()) :: {:ok, map()}
+  @spec delete(ids :: id() | [id()], name :: GenServer.name()) ::
+          {:ok, map()} | {:badtree, map()}
   def delete(_a, name \\ DDRT)
 
   @doc """
@@ -291,7 +298,8 @@ defmodule DDRT.DynamicRtree do
   }}
   ```
   """
-  @spec bulk_update(leaves :: list(leaf()), name :: GenServer.name()) :: {:ok, map()}
+  @spec bulk_update(leaves :: [leaf()], name :: GenServer.name()) ::
+          {:ok, map()} | {:badtree, map()}
   def bulk_update(updates, name \\ DDRT) when is_list(updates) do
     GenServer.call(name, {:bulk_update, updates}, :infinity)
   end
@@ -320,8 +328,7 @@ defmodule DDRT.DynamicRtree do
           ids :: id(),
           box :: bounding_box() | {bounding_box(), bounding_box()},
           name :: GenServer.name()
-        ) :: {:ok, map()}
-
+        ) :: {:ok, map()} | {:badtree, map()}
   def update(id, update, name \\ DDRT) do
     GenServer.call(name, {:update, {id, update}})
   end
