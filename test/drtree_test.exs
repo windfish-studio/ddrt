@@ -90,6 +90,32 @@ defmodule DynamicRtreeTest do
       assert root_box == [{-50, 36}, {-10, 41}]
     end
 
+    test "MerkleMap inserts a same single point without crash" do
+      DynamicRtree.new(type: MerkleMap)
+      new_tuple = {new_node, _new_box} = {UUID.uuid1(), [{1, 2}, {3, 4}]}
+      {:ok, t} = DynamicRtree.insert(new_tuple)
+      assert t == DynamicRtree.tree()
+      {cont, parent, box} = t |> MerkleMap.get(new_node)
+      assert cont == :leaf
+      assert parent == t[:root]
+      assert box == [{1, 2}, {3, 4}]
+
+      DynamicRtree.new(type: MerkleMap)
+
+      # ok:
+      # {:ok, t} = DynamicRtree.insert({1, [{9, 9.1}, {9, 9.1}]})
+      # crash:
+      {:ok, t} = DynamicRtree.insert({1, [{9, 9}, {9, 9.1}]})
+
+      assert t == DynamicRtree.tree()
+
+      root = t |> MerkleMap.get(:root)
+      {ch, _root_ptr, root_box} = t |> MerkleMap.get(root)
+      assert t |> Enum.to_list() |> length == t |> Enum.uniq() |> length
+      assert length(ch) == 2
+      assert root_box == [{-50, 36}, {-10, 41}]
+    end
+
     test "Map delete leaf keeps tree consistency" do
       DynamicRtree.new()
 
