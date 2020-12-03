@@ -89,15 +89,19 @@ defmodule DDRT.DynamicRtreeImpl.Utils do
   end
 
   # Return the area of a bounding box
-  def area([{a, b}, {c, d}]) when (b - a) * (d - c) != 0 do
-    (b - a) * (d - c)
+  def area([{a, b}, {c, d}]) do
+    ab = b - a
+    cd = d - c
+
+    cond do
+      ab == 0 and cd != 0 -> cd
+      ab != 0 and cd == 0 -> ab
+      ab != 0 and cd != 0 -> ab * cd
+      ab == 0 and cd == 0 -> -1
+    end
   end
 
-  def area([{_a, _b}, {_c, _d}]) do
-    -1
-  end
-
-  # Return de the middle bounding box value
+  # Return the middle bounding box value
   def middle_value([{a, b}, {c, d}]) do
     (a + b + c + d) / 2
   end
