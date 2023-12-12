@@ -90,6 +90,20 @@ defmodule DynamicRtreeTest do
       assert root_box == [{-50, 36}, {-10, 41}]
     end
 
+    test "MerkleMap inserts a triangular bounding box without crash" do
+      DynamicRtree.new(type: MerkleMap)
+
+      {:ok, t} = DynamicRtree.insert({1, [{9, 9}, {9, 9.1}]})
+
+      assert t == DynamicRtree.tree()
+
+      root = t |> MerkleMap.get(:root)
+      {ch, _root_ptr, root_box} = t |> MerkleMap.get(root)
+      assert t |> Enum.to_list() |> length == t |> Enum.uniq() |> length
+      assert length(ch) == 1
+      assert root_box == [{9, 9}, {9, 9.1}]
+    end
+
     test "Map delete leaf keeps tree consistency" do
       DynamicRtree.new()
 
@@ -115,7 +129,7 @@ defmodule DynamicRtreeTest do
       refute delete_id in (t[old_parent] |> elem(0))
 
       {:ok, same_t} = DynamicRtree.delete(delete_id)
-      assert t = same_t
+      assert ^t = same_t
 
       {:ok, t} = DynamicRtree.delete(1..100 |> Enum.map(fn x -> x end))
       root = t[:root]
@@ -154,7 +168,7 @@ defmodule DynamicRtreeTest do
       refute delete_id in (t |> MerkleMap.get(old_parent) |> elem(0))
 
       {:ok, same_t} = DynamicRtree.delete(delete_id)
-      assert t = same_t
+      assert ^t = same_t
 
       {:ok, t} = DynamicRtree.delete(1..100 |> Enum.map(fn x -> x end))
       root = t |> MerkleMap.get(:root)
